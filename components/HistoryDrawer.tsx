@@ -218,7 +218,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                     </div>
 
                     {/* Note Content Preview */}
-                    <p className="text-slate-800 font-medium line-clamp-2 leading-relaxed">
+                    <p className="text-slate-800 font-medium line-clamp-4 leading-relaxed whitespace-pre-wrap">
                       {n.content}
                     </p>
 

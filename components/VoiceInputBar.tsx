@@ -21,8 +21,16 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
 
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const FOLDERS = ['Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'];
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 220)}px`;
+    }
+  }, [text]);
 
   useEffect(() => {
     // Check Web Speech API availability
@@ -185,12 +193,12 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
         )}
 
         {/* Input Bar Form */}
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        <form onSubmit={handleSubmit} className="flex items-end gap-2">
           {/* Mic Record Button */}
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all shadow-xs active:scale-95 ${
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all shadow-xs active:scale-95 mb-0.5 ${
               isRecording
                 ? 'bg-red-600 text-white ring-4 ring-red-100'
                 : 'bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200'
@@ -203,6 +211,7 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
           {/* Text Area Input */}
           <div className="flex-1 relative">
             <textarea
+              ref={textareaRef}
               value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={e => {
@@ -211,9 +220,9 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
                   handleSubmit();
                 }
               }}
-              placeholder={isRecording ? 'Sedang mendengarkan suara Anda...' : 'Tulis catatan atau tekan tombol mic untuk merekam suara...'}
+              placeholder={isRecording ? 'Sedang mendengarkan suara Anda...' : 'Tulis catatan, tempel dari papan klip, atau rekam suara...'}
               rows={1}
-              className="w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-900 border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 rounded-2xl py-2.5 pl-4 pr-10 text-sm outline-none transition-all resize-none max-h-24"
+              className="w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-900 border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 rounded-2xl py-2.5 pl-4 pr-10 text-sm outline-none transition-all resize-none max-h-[220px] min-h-[44px] overflow-y-auto"
             />
             {text && (
               <button
@@ -230,7 +239,7 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
           <button
             type="submit"
             disabled={!text.trim() || isSubmitting}
-            className="w-11 h-11 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white disabled:text-slate-400 flex items-center justify-center shrink-0 transition-all shadow-md shadow-indigo-100 active:scale-95"
+            className="w-11 h-11 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white disabled:text-slate-400 flex items-center justify-center shrink-0 transition-all shadow-md shadow-indigo-100 active:scale-95 mb-0.5"
             title="Kirim Catatan Ke Room Chat"
           >
             <Send className="w-5 h-5" />

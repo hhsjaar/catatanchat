@@ -31,7 +31,7 @@
     "id": "note_1784644640917_036o3",
     "content": "oke ini untuk percobaan",
     "rawAudioTranscript": null,
-    "formattedReport": null,
+    "formattedReport": "Tentu, berikut adalah laporan yang rapi dan terstruktur berdasarkan teks mentah yang Anda berikan:\n\n#### Laporan Pengujian Awal\n\n**Ringkasan Eksekutif:**\nLaporan ini mendokumentasikan inisiasi sebuah **pengujian awal** atau **percobaan** yang bertujuan untuk memverifikasi fungsionalitas dasar atau kesiapan dari suatu sistem/proses. Tahap ini merupakan langkah permulaan untuk eksplorasi atau pengembangan lebih lanjut.\n\n**Detail Percobaan:**\n*   **Tujuan Utama:** Melakukan **validasi awal** terhadap kesiapan atau fungsionalitas dasar objek yang diuji.\n*   **Status Inisiasi:** Percobaan berada pada fase **inisiasi** dan **persiapan awal**.\n*   **Lingkup Percobaan:** Fokus pada aspek-aspek **kritis** dan **fundamental** yang memerlukan verifikasi cepat.\n*   **Metodologi:** Observasi langsung dan verifikasi langkah demi langkah untuk mengonfirmasi status \"siap untuk percobaan\".\n\n**Tabel Status Pengujian Awal:**\n\n| Tahapan Percobaan | Deskripsi                               | Status Saat Ini     | Catatan                                   |\n| :---------------- | :-------------------------------------- | :------------------ | :---------------------------------------- |\n| **Persiapan**     | Menyiapkan lingkungan dan sumber daya   | Selesai             | Lingkungan dan alat bantu **siap digunakan** |\n| **Inisiasi**      | Memulai proses percobaan                | Sedang Berlangsung  | Proses **berjalan** sesuai rencana awal    |\n| **Verifikasi**    | Pemeriksaan fungsionalitas dan hasil awal | Belum Dimulai      | Akan segera dilakukan setelah inisiasi    |\n\n**Rekomendasi & Langkah Selanjutnya:**\n1.  **Lanjutkan Pengujian:** Meneruskan **percobaan** sesuai rencana yang telah ditetapkan untuk mengumpulkan data dan observasi yang lebih komprehensif.\n2.  **Dokumentasi Hasil:** Segera mendokumentasikan setiap **temuan**, observasi, atau anomali yang muncul selama proses pengujian.\n3.  **Evaluasi Awal:** Melakukan **evaluasi singkat** berdasarkan hasil inisiasi untuk menentukan potensi masalah atau area yang memerlukan perhatian lebih lanjut.\n4.  **Perencanaan Lanjutan:** Mengembangkan **rencana pengujian detail** berdasarkan hasil dari tahap awal ini.",
     "tags": [
       "Catatan"
     ],
@@ -40,6 +40,6 @@
     "isFavorite": false,
     "isAiGenerated": false,
     "createdAt": "2026-07-21T14:37:20.918Z",
-    "updatedAt": "2026-07-21T14:37:20.918Z"
+    "updatedAt": "2026-07-21T14:37:38.353Z"
   }
 ]
