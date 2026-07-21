@@ -68,7 +68,12 @@ export async function paraphraseText(text: string, style: 'formal' | 'concise' |
     try {
       const prompt = `
 Tolong parafrase teks berikut dalam bahasa Indonesia dengan gaya "${style}". 
-Pastikan kalimatnya mengalir dengan alami, profesional, dan mudah dipahami.
+
+PETUNJUK PENTING:
+1. Relevan & Tepat Sasaran: Fokus HANYA pada isi materi teks asli. JANGAN menambahkan cerita luar, asumsi tambahan, atau kalimat bertele-tele (ngalor-ngidul).
+2. Format Alami: Jika tidak secara khusus diminta gaya 'bullet', tuliskan dalam paragraf kalimat mengalir yang rapi. JANGAN membuat tabel atau poin-poin jika tidak benar-benar dibutuhkan.
+3. Jaga Maksud Asli: Pertahankan semua fakta penting dari teks tanpa mengubah artinya.
+
 Teks asli: "${text}"
 `;
 
@@ -91,7 +96,7 @@ Teks asli: "${text}"
   } else if (style === 'bullet') {
     return text.split('. ').map(sentence => `- ${sentence.trim()}`).join('\n');
   }
-  return `Teks ringkas: ${text}`;
+  return text;
 }
 
 export interface AssistantResponse {

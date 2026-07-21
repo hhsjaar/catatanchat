@@ -1,0 +1,45 @@
+[
+  {
+    "id": "note_welcome_1",
+    "content": "Selamat datang di Chat Voice Notes! 🎙️ Anda dapat merekam suara atau mengetik pesan di sini. Catatan baru akan otomatis tersimpan dalam bentuk bubble chat.",
+    "tags": [
+      "Petunjuk",
+      "Selamat Datang"
+    ],
+    "category": "Umum",
+    "isFavorite": true,
+    "isAiGenerated": false,
+    "createdAt": "2026-07-21T14:25:01.334Z",
+    "updatedAt": "2026-07-21T14:25:01.334Z"
+  },
+  {
+    "id": "note_welcome_2",
+    "content": "Contoh Catatan Rapat: Pembahasan proyek aplikasi berbasis Neon PostgreSQL dan Google Gemini AI. Target selesai dalam minggu ini. Poin penting: 1. Desain clean & modern white theme, 2. Fitur AI report generator, 3. Voice Assistant terintegrasi.",
+    "formattedReport": "### 📋 Laporan Singkat Proyek\n**Topik**: Pembahasan Aplikasi Chat Voice Notes\n\n#### 🎯 Target Utama\n- Penyelesaian aplikasi minggu ini\n- Integrasi database **Neon PostgreSQL**\n- Penggunaan **Google Gemini AI** untuk analisis\n\n#### 📌 Poin Penting\n| No | Fitur | Status |\n|---|---|---|\n| 1 | Desain Clean White Theme | Selesai |\n| 2 | AI Report Generator | Aktif |\n| 3 | AI Voice Assistant | Aktif |\n",
+    "tags": [
+      "Meeting",
+      "Gemini AI",
+      "NeonDB"
+    ],
+    "category": "Pekerjaan",
+    "isFavorite": false,
+    "isAiGenerated": true,
+    "createdAt": "2026-07-21T13:25:01.334Z",
+    "updatedAt": "2026-07-21T13:25:01.335Z"
+  },
+  {
+    "id": "note_1784644640917_036o3",
+    "content": "oke ini untuk percobaan",
+    "rawAudioTranscript": null,
+    "formattedReport": null,
+    "tags": [
+      "Catatan"
+    ],
+    "category": "Umum",
+    "folder": "Umum",
+    "isFavorite": false,
+    "isAiGenerated": false,
+    "createdAt": "2026-07-21T14:37:20.918Z",
+    "updatedAt": "2026-07-21T14:37:20.918Z"
+  }
+]

@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { content, rawAudioTranscript, autoGenerateReport, tags, category } = body;
+    const { content, rawAudioTranscript, autoGenerateReport, tags, category, folder } = body;
 
     if (!content || typeof content !== 'string' || content.trim() === '') {
       return NextResponse.json({ success: false, error: 'Content is required' }, { status: 400 });
@@ -29,8 +29,9 @@ export async function POST(req: Request) {
       content,
       rawAudioTranscript,
       formattedReport,
-      tags: tags || ['Chat Note'],
-      category: category || 'Umum',
+      tags: tags || ['Catatan'],
+      category: category || folder || 'Umum',
+      folder: folder || category || 'Umum',
       isAiGenerated: false
     });
 

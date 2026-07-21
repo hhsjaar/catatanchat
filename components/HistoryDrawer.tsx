@@ -5,14 +5,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
   Search, 
-  Layers, 
   Trash2, 
   FileText, 
   Sparkles, 
   CheckSquare, 
   Square,
   RefreshCw,
-  Calendar
+  Calendar,
+  Folder,
+  ChevronRight,
+  Mic
 } from 'lucide-react';
 import { Note } from '@/lib/db';
 
@@ -22,7 +24,7 @@ interface HistoryDrawerProps {
   notes: Note[];
   onDeleteNote: (id: string) => Promise<void>;
   onMergeNotes: (noteIds: string[]) => Promise<void>;
-  onViewReport: (note: Note) => void;
+  onOpenDetailNote: (note: Note) => void;
 }
 
 export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
@@ -31,19 +33,29 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   notes,
   onDeleteNote,
   onMergeNotes,
-  onViewReport
+  onOpenDetailNote
 }) => {
   const [search, setSearch] = useState('');
+  const [activeFolderTab, setActiveFolderTab] = useState('Semua');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isMerging, setIsMerging] = useState(false);
 
-  const filteredNotes = notes.filter(n =>
-    n.content.toLowerCase().includes(search.toLowerCase()) ||
-    (n.formattedReport && n.formattedReport.toLowerCase().includes(search.toLowerCase())) ||
-    (n.tags && n.tags.some(t => t.toLowerCase().includes(search.toLowerCase())))
-  );
+  const FOLDER_TABS = ['Semua', 'Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'];
 
-  const toggleSelect = (id: string) => {
+  const filteredNotes = notes.filter(n => {
+    const matchesSearch = 
+      n.content.toLowerCase().includes(search.toLowerCase()) ||
+      (n.formattedReport && n.formattedReport.toLowerCase().includes(search.toLowerCase())) ||
+      (n.folder && n.folder.toLowerCase().includes(search.toLowerCase()));
+
+    const noteFolder = n.folder || n.category || 'Umum';
+    const matchesFolder = activeFolderTab === 'Semua' || noteFolder === activeFolderTab;
+
+    return matchesSearch && matchesFolder;
+  });
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
@@ -89,8 +101,9 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
             </button>
           </div>
 
-          {/* Search Bar & Multi-Merge Banner */}
+          {/* Folder Tabs & Search Bar */}
           <div className="p-4 border-b border-slate-100 bg-white space-y-3">
+            {/* Search Input */}
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
@@ -110,7 +123,24 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
               )}
             </div>
 
-            {/* Merge Action Button */}
+            {/* Folder Filter Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+              {FOLDER_TABS.map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveFolderTab(tab)}
+                  className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all border ${
+                    activeFolderTab === tab
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200/70'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Multi-Merge Action Banner */}
             {selectedIds.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
@@ -128,7 +158,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                   ) : (
                     <Sparkles className="w-3.5 h-3.5" />
                   )}
-                  <span>Gabung AI Report</span>
+                  <span>Gabung Laporan</span>
                 </button>
               </motion.div>
             )}
@@ -138,7 +168,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
             {filteredNotes.length === 0 ? (
               <div className="text-center py-12 text-slate-400 text-xs">
-                Tidak ada catatan ditemukan.
+                Tidak ada catatan ditemukan pada folder "{activeFolderTab}".
               </div>
             ) : (
               filteredNotes.map(n => {
@@ -146,43 +176,62 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                 return (
                   <div
                     key={n.id}
-                    className={`p-3.5 rounded-2xl bg-white border transition-all text-xs space-y-2 relative group ${
-                      isSelected ? 'border-indigo-500 ring-2 ring-indigo-100 shadow-sm' : 'border-slate-200/90 shadow-2xs hover:border-slate-300'
+                    onClick={() => onOpenDetailNote(n)}
+                    className={`p-3.5 rounded-2xl bg-white border transition-all text-xs space-y-2 relative group cursor-pointer hover:shadow-md ${
+                      isSelected ? 'border-indigo-500 ring-2 ring-indigo-100 shadow-sm' : 'border-slate-200/90 shadow-2xs hover:border-indigo-300'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <button
-                        onClick={() => toggleSelect(n.id)}
-                        className="flex items-center gap-2 text-slate-700 text-left font-medium line-clamp-2"
-                      >
-                        {isSelected ? (
-                          <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-300 shrink-0 hover:text-slate-500" />
+                    {/* Header Row: Checkbox, Folder, Time */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => toggleSelect(n.id, e)}
+                          className="p-0.5 text-slate-400 hover:text-indigo-600"
+                          title="Pilih untuk digabungkan"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-300 shrink-0 hover:text-slate-500" />
+                          )}
+                        </button>
+                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-indigo-100">
+                          <Folder className="w-3 h-3" /> {n.folder || n.category || 'Umum'}
+                        </span>
+                        {n.rawAudioTranscript && (
+                          <span className="text-[10px] bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-full font-medium border border-violet-100 flex items-center gap-0.5">
+                            <Mic className="w-2.5 h-2.5" /> Suara
+                          </span>
                         )}
-                        <span>{n.content}</span>
-                      </button>
+                      </div>
+
                       <button
-                        onClick={() => onDeleteNote(n.id)}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await onDeleteNote(n.id);
+                        }}
                         className="text-slate-300 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition-all shrink-0"
+                        title="Hapus Catatan"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
-                      <span className="flex items-center gap-1">
+                    {/* Note Content Preview */}
+                    <p className="text-slate-800 font-medium line-clamp-2 leading-relaxed">
+                      {n.content}
+                    </p>
+
+                    {/* Bottom Metadata & Detail Arrow */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-100">
+                      <span className="flex items-center gap-1 font-mono text-[10px]">
                         <Calendar className="w-3 h-3 text-slate-400" />
                         {new Date(n.createdAt).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      {n.formattedReport && (
-                        <button
-                          onClick={() => onViewReport(n)}
-                          className="text-indigo-600 hover:underline font-medium flex items-center gap-1"
-                        >
-                          <FileText className="w-3 h-3" /> Lihat Laporan
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1 text-indigo-600 font-semibold group-hover:translate-x-0.5 transition-transform">
+                        <span>Buka</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </div>
                     </div>
                   </div>
                 );

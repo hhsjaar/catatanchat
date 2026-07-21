@@ -9,6 +9,7 @@ export interface Note {
   formattedReport?: string | null;
   tags: string[];
   category?: string | null;
+  folder?: string | null;
   isFavorite: boolean;
   isAiGenerated: boolean;
   createdAt: string;
@@ -36,9 +37,10 @@ function loadLocalNotes(): Note[] {
   const initialNotes: Note[] = [
     {
       id: 'note_welcome_1',
-      content: 'Selamat datang di Chat Voice Notes! 🎙️ Anda dapat merekam suara atau mengetik pesan di sini. Catatan baru akan otomatis tersimpan dalam bentuk bubble chat.',
-      tags: ['Petunjuk', 'Selamat Datang'],
+      content: 'Selamat datang di Catatan Suara! 🎙️ Anda dapat merekam suara atau mengetik pesan di sini. Catatan baru akan otomatis tersimpan.',
+      tags: ['Petunjuk'],
       category: 'Umum',
+      folder: 'Umum',
       isFavorite: true,
       isAiGenerated: false,
       createdAt: new Date().toISOString(),
@@ -46,24 +48,22 @@ function loadLocalNotes(): Note[] {
     },
     {
       id: 'note_welcome_2',
-      content: 'Contoh Catatan Rapat: Pembahasan proyek aplikasi berbasis Neon PostgreSQL dan Google Gemini AI. Target selesai dalam minggu ini. Poin penting: 1. Desain clean & modern white theme, 2. Fitur AI report generator, 3. Voice Assistant terintegrasi.',
+      content: 'Catatan Rapat Proyek: Pembahasan fitur aplikasi pencatat suara. Target selesai minggu ini. Poin penting: 1. Tampilan bersih dan modern, 2. Pengelompokkan folder catatan, 3. Ekspor laporan PDF.',
       formattedReport: `### 📋 Laporan Singkat Proyek
-**Topik**: Pembahasan Aplikasi Chat Voice Notes
+**Topik**: Pembahasan Aplikasi Catatan Suara
 
 #### 🎯 Target Utama
-- Penyelesaian aplikasi minggu ini
-- Integrasi database **Neon PostgreSQL**
-- Penggunaan **Google Gemini AI** untuk analisis
+- Penyelesaian fitur minggu ini
+- Pengelompokkan folder catatan
+- Fitur ekspor laporan PDF
 
 #### 📌 Poin Penting
-| No | Fitur | Status |
-|---|---|---|
-| 1 | Desain Clean White Theme | Selesai |
-| 2 | AI Report Generator | Aktif |
-| 3 | AI Voice Assistant | Aktif |
+- Tampilan bersih & modern
+- Mode ringkas pada room chat
 `,
-      tags: ['Meeting', 'Gemini AI', 'NeonDB'],
+      tags: ['Meeting', 'Proyek'],
       category: 'Pekerjaan',
+      folder: 'Pekerjaan',
       isFavorite: false,
       isAiGenerated: true,
       createdAt: new Date(Date.now() - 3600000).toISOString(),
@@ -105,6 +105,7 @@ async function ensureNeonTable() {
         formatted_report TEXT,
         tags JSONB DEFAULT '[]'::jsonb,
         category VARCHAR(100),
+        folder VARCHAR(100) DEFAULT 'Umum',
         is_favorite BOOLEAN DEFAULT FALSE,
         is_ai_generated BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -122,7 +123,7 @@ export async function getNotes(): Promise<{ notes: Note[]; isNeon: boolean }> {
     try {
       await ensureNeonTable();
       const rows = await sqlClient`
-        SELECT id, content, raw_audio_transcript, formatted_report, tags, category, is_favorite, is_ai_generated, created_at, updated_at
+        SELECT id, content, raw_audio_transcript, formatted_report, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at
         FROM notes
         ORDER BY created_at ASC;
       `;
@@ -133,7 +134,8 @@ export async function getNotes(): Promise<{ notes: Note[]; isNeon: boolean }> {
         rawAudioTranscript: r.raw_audio_transcript,
         formattedReport: r.formatted_report,
         tags: Array.isArray(r.tags) ? r.tags : (typeof r.tags === 'string' ? JSON.parse(r.tags) : []),
-        category: r.category,
+        category: r.category || r.folder || 'Umum',
+        folder: r.folder || r.category || 'Umum',
         isFavorite: Boolean(r.is_favorite),
         isAiGenerated: Boolean(r.is_ai_generated),
         createdAt: new Date(r.created_at).toISOString(),
@@ -155,15 +157,18 @@ export async function createNote(data: {
   formattedReport?: string | null;
   tags?: string[];
   category?: string | null;
+  folder?: string | null;
   isAiGenerated?: boolean;
 }): Promise<Note> {
+  const chosenFolder = data.folder || data.category || 'Umum';
   const newNote: Note = {
     id: `note_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     content: data.content,
     rawAudioTranscript: data.rawAudioTranscript || null,
     formattedReport: data.formattedReport || null,
-    tags: data.tags || ['Umum'],
-    category: data.category || 'Umum',
+    tags: data.tags || ['Catatan'],
+    category: chosenFolder,
+    folder: chosenFolder,
     isFavorite: false,
     isAiGenerated: Boolean(data.isAiGenerated),
     createdAt: new Date().toISOString(),
@@ -174,8 +179,8 @@ export async function createNote(data: {
     try {
       await ensureNeonTable();
       await sqlClient`
-        INSERT INTO notes (id, content, raw_audio_transcript, formatted_report, tags, category, is_favorite, is_ai_generated, created_at, updated_at)
-        VALUES (${newNote.id}, ${newNote.content}, ${newNote.rawAudioTranscript}, ${newNote.formattedReport}, ${JSON.stringify(newNote.tags)}, ${newNote.category}, ${newNote.isFavorite}, ${newNote.isAiGenerated}, ${newNote.createdAt}, ${newNote.updatedAt});
+        INSERT INTO notes (id, content, raw_audio_transcript, formatted_report, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at)
+        VALUES (${newNote.id}, ${newNote.content}, ${newNote.rawAudioTranscript}, ${newNote.formattedReport}, ${JSON.stringify(newNote.tags)}, ${newNote.category}, ${newNote.folder}, ${newNote.isFavorite}, ${newNote.isAiGenerated}, ${newNote.createdAt}, ${newNote.updatedAt});
       `;
       return newNote;
     } catch (err) {

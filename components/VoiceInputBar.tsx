@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Send, Sparkles, X, Square, Play, PlusCircle } from 'lucide-react';
+import { Mic, MicOff, Send, Sparkles, X, Square, Folder } from 'lucide-react';
 
 interface VoiceInputBarProps {
-  onSendNote: (content: string, rawTranscript?: string, autoGenerateReport?: boolean) => Promise<void>;
+  onSendNote: (content: string, rawTranscript?: string, autoGenerateReport?: boolean, folder?: string) => Promise<void>;
   isSubmitting?: boolean;
 }
 
@@ -16,9 +16,13 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [autoGenerateReport, setAutoGenerateReport] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState('Umum');
   const [speechSupported, setSpeechSupported] = useState(true);
 
   const recognitionRef = useRef<any>(null);
+  const baseTextRef = useRef<string>('');
+
+  const FOLDERS = ['Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'];
 
   useEffect(() => {
     // Check Web Speech API availability
@@ -40,6 +44,7 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
     }
 
     try {
+      baseTextRef.current = text;
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -50,15 +55,23 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
       };
 
       recognition.onresult = (event: any) => {
-        let currentTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          currentTranscript += event.results[i][0].transcript;
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = 0; i < event.results.length; i++) {
+          const chunk = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += chunk + ' ';
+          } else {
+            interimTranscript += chunk;
+          }
         }
-        setTranscript(currentTranscript);
-        setText(prev => {
-          // Append live transcript to existing text
-          return prev ? `${prev} ${currentTranscript}` : currentTranscript;
-        });
+
+        const combinedSpeech = (finalTranscript + interimTranscript).replace(/\s+/g, ' ').trim();
+        setTranscript(combinedSpeech);
+
+        const base = baseTextRef.current.trim();
+        setText(base ? `${base} ${combinedSpeech}` : combinedSpeech);
       };
 
       recognition.onerror = (event: any) => {
@@ -98,8 +111,9 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
     
     setText('');
     setTranscript('');
+    baseTextRef.current = '';
 
-    await onSendNote(currentText, currentTranscript, autoGenerateReport);
+    await onSendNote(currentText, currentTranscript, autoGenerateReport, selectedFolder);
   };
 
   const handleQuickChip = (suggestion: string) => {
@@ -109,39 +123,38 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
   return (
     <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-3 px-4 sm:px-6">
       <div className="max-w-4xl mx-auto">
-        {/* Quick Suggestion Chips */}
+        {/* Folder Selection & Quick Chips */}
         <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-1 no-scrollbar text-xs">
-          <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">Format Cepat:</span>
-          <button
-            onClick={() => handleQuickChip('📌 Catatan Meeting Rapat: ')}
-            className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium whitespace-nowrap transition-all border border-slate-200/60"
-          >
-            📌 Rapat Meeting
-          </button>
-          <button
-            onClick={() => handleQuickChip('💡 Ide Inovasi: ')}
-            className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium whitespace-nowrap transition-all border border-slate-200/60"
-          >
-            💡 Ide Proyek
-          </button>
-          <button
-            onClick={() => handleQuickChip('📝 Daftar Tugas Harian: ')}
-            className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium whitespace-nowrap transition-all border border-slate-200/60"
-          >
-            📝 Task List
-          </button>
+          <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap flex items-center gap-1">
+            <Folder className="w-3 h-3 text-indigo-500" /> Folder:
+          </span>
+          {FOLDERS.map(f => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setSelectedFolder(f)}
+              className={`px-2.5 py-1 rounded-full font-medium whitespace-nowrap transition-all border ${
+                selectedFolder === f
+                  ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200/80'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
 
           {/* AI Auto-Report Toggle Badge */}
           <button
+            type="button"
             onClick={() => setAutoGenerateReport(!autoGenerateReport)}
             className={`ml-auto flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all text-xs border ${
               autoGenerateReport
-                ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Auto Laporan AI</span>
+            <span>Auto Laporan</span>
           </button>
         </div>
 
