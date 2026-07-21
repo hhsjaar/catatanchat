@@ -1,65 +1,266 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
+import { MessageSquare, Sparkles, Mic, Bot, FileText, CheckCircle2 } from 'lucide-react';
+
+import { Note } from '@/lib/db';
+import { Navbar } from '@/components/Navbar';
+import { ChatBubble } from '@/components/ChatBubble';
+import { VoiceInputBar } from '@/components/VoiceInputBar';
+import { VoiceAssistant } from '@/components/VoiceAssistant';
+import { HistoryDrawer } from '@/components/HistoryDrawer';
+import { ReportViewModal } from '@/components/ReportViewModal';
 
 export default function Home() {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [isNeon, setIsNeon] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+  const [generatingReportId, setGeneratingReportId] = useState<string | null>(null);
+
+  // Modals & Drawers
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [activeReportNote, setActiveReportNote] = useState<Note | null>(null);
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotes = async () => {
+    try {
+      const res = await fetch('/api/notes');
+      const data = await res.json();
+      if (data.success) {
+        setNotes(data.notes || []);
+        setIsNeon(Boolean(data.isNeon));
+      }
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotes();
+  }, []);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [notes, isSubmittingNote]);
+
+  const handleSendNote = async (content: string, rawTranscript?: string, autoGenerateReport?: boolean) => {
+    setIsSubmittingNote(true);
+    try {
+      const res = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, rawAudioTranscript: rawTranscript, autoGenerateReport })
+      });
+
+      const data = await res.json();
+      if (data.success && data.note) {
+        setNotes(prev => [...prev, data.note]);
+        if (data.note.formattedReport) {
+          confetti({ particleCount: 60, spread: 60, origin: { y: 0.8 } });
+        }
+      }
+    } catch (err) {
+      console.error('Error creating note:', err);
+    } finally {
+      setIsSubmittingNote(false);
+    }
+  };
+
+  const handleGenerateReport = async (noteId: string, content: string) => {
+    setGeneratingReportId(noteId);
+    try {
+      const res = await fetch('/api/gemini/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId, content })
+      });
+
+      const data = await res.json();
+      if (data.success && data.report) {
+        setNotes(prev =>
+          prev.map(n => (n.id === noteId ? { ...n, formattedReport: data.report } : n))
+        );
+        const updatedNote = notes.find(n => n.id === noteId);
+        if (updatedNote) {
+          setActiveReportNote({ ...updatedNote, formattedReport: data.report });
+        }
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
+      }
+    } catch (err) {
+      console.error('Error generating report:', err);
+    } finally {
+      setGeneratingReportId(null);
+    }
+  };
+
+  const handleParaphrase = async (noteId: string, content: string, style: 'formal' | 'concise' | 'bullet') => {
+    try {
+      const res = await fetch('/api/gemini/paraphrase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: content, style })
+      });
+
+      const data = await res.json();
+      if (data.success && data.paraphrased) {
+        // Add paraphrased note as a new follow-up response in the chat room feed
+        const patchRes = await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: `✨ Hasil Parafrase (${style.toUpperCase()}):\n${data.paraphrased}`,
+            tags: ['Parafrase AI', style],
+            category: 'Parafrase'
+          })
+        });
+        const patchData = await patchRes.json();
+        if (patchData.success) {
+          setNotes(prev => [...prev, patchData.note]);
+        }
+      }
+    } catch (err) {
+      console.error('Error paraphrasing:', err);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await fetch(`/api/notes?id=${noteId}`, { method: 'DELETE' });
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+    } catch (err) {
+      console.error('Error deleting note:', err);
+    }
+  };
+
+  const handleMergeNotes = async (noteIds: string[]) => {
+    try {
+      const res = await fetch('/api/gemini/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteIds })
+      });
+
+      const data = await res.json();
+      if (data.success && data.note) {
+        setNotes(prev => [...prev, data.note]);
+        setActiveReportNote(data.note);
+        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+      }
+    } catch (err) {
+      console.error('Error merging notes:', err);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+      {/* Top Navbar */}
+      <Navbar
+        noteCount={notes.length}
+        isNeon={isNeon}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenAssistant={() => setIsAssistantOpen(true)}
+      />
+
+      {/* Main Single-Page Chat Stream */}
+      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 pb-36">
+        {/* Intro Room Header */}
+        <div className="my-4 p-4 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-900 text-sm">Room Chat Catatan Anda</h2>
+              <p className="text-xs text-slate-500">Rekam suara atau tulis pesan untuk menambahkan catatan baru</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-medium border border-emerald-200">
+              <CheckCircle2 className="w-3.5 h-3.5" /> STT Real-time
+            </span>
+            <span className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-medium border border-indigo-200">
+              <Sparkles className="w-3.5 h-3.5" /> Gemini Flash API
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        {/* Notes Stream Timeline */}
+        {isLoading ? (
+          <div className="text-center py-16 space-y-3">
+            <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="text-xs text-slate-500 font-medium">Memuat catatan room chat...</p>
+          </div>
+        ) : notes.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-3xl border border-slate-200/80 p-8 my-6 space-y-4">
+            <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto border border-indigo-100">
+              <Mic className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">Belum ada catatan</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+              Mulai buat catatan pertama Anda dengan menekan tombol mikrofon di bawah atau mengetik langsung di room chat.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {notes.map(note => (
+              <ChatBubble
+                key={note.id}
+                note={note}
+                onGenerateReport={handleGenerateReport}
+                onParaphrase={handleParaphrase}
+                onDelete={handleDeleteNote}
+                onViewReport={noteToView => setActiveReportNote(noteToView)}
+                isGeneratingReport={generatingReportId === note.id}
+              />
+            ))}
+          </div>
+        )}
+
+        {isSubmittingNote && (
+          <div className="flex justify-end my-3">
+            <div className="bg-indigo-600 text-white text-xs px-4 py-2.5 rounded-2xl rounded-tr-xs shadow-xs flex items-center gap-2 animate-pulse">
+              <span>Menambahkan catatan ke room chat...</span>
+            </div>
+          </div>
+        )}
+
+        <div ref={chatEndRef} />
       </main>
+
+      {/* Bottom Speech-to-Text Input Bar */}
+      <VoiceInputBar
+        onSendNote={handleSendNote}
+        isSubmitting={isSubmittingNote}
+      />
+
+      {/* Slide-over & Modals */}
+      <HistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        notes={notes}
+        onDeleteNote={handleDeleteNote}
+        onMergeNotes={handleMergeNotes}
+        onViewReport={noteToView => setActiveReportNote(noteToView)}
+      />
+
+      <VoiceAssistant
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
+        onRefreshNotes={fetchNotes}
+      />
+
+      <ReportViewModal
+        note={activeReportNote}
+        onClose={() => setActiveReportNote(null)}
+      />
     </div>
   );
 }
