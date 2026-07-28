@@ -17,11 +17,32 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
   const [transcript, setTranscript] = useState('');
   const [autoGenerateReport, setAutoGenerateReport] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState('Umum');
-  const [speechSupported, setSpeechSupported] = useState(true);
+  const [speechSupported] = useState(() => {
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      return !!SpeechRecognition;
+    }
+    return true;
+  });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>('');
+  const baseTranscriptRef = useRef<string>('');
+  const isExplicitStopRef = useRef<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const textRef = useRef(text);
+  const transcriptRef = useRef(transcript);
+
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
+
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
 
   const FOLDERS = ['Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'];
 
@@ -32,18 +53,9 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
     }
   }, [text]);
 
-  useEffect(() => {
-    // Check Web Speech API availability
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        setSpeechSupported(false);
-      }
-    }
-  }, []);
-
   const startRecording = () => {
     if (typeof window === 'undefined') return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
@@ -52,7 +64,10 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
     }
 
     try {
-      baseTextRef.current = text;
+      baseTextRef.current = textRef.current;
+      baseTranscriptRef.current = transcriptRef.current;
+      isExplicitStopRef.current = false;
+
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -62,6 +77,7 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
         setIsRecording(true);
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onresult = (event: any) => {
         const finalTranscripts: string[] = [];
         const interimTranscripts: string[] = [];
@@ -108,19 +124,66 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
         }
 
         combinedSpeech = combinedSpeech.replace(/\s+/g, ' ').trim();
-        setTranscript(combinedSpeech);
+
+        let cleanedSpeech = combinedSpeech;
+        let triggeredStop = false;
+
+        if (combinedSpeech) {
+          const words = combinedSpeech.split(/\s+/);
+          if (words.length > 0) {
+            const lastWordClean = words[words.length - 1]
+              .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
+              .trim()
+              .toLowerCase();
+            
+            if (lastWordClean === 'cukup') {
+              triggeredStop = true;
+              words.pop();
+              cleanedSpeech = words.join(' ').trim();
+            }
+          }
+        }
 
         const base = baseTextRef.current.trim();
-        setText(base ? `${base} ${combinedSpeech}` : combinedSpeech);
+        const baseTranscript = baseTranscriptRef.current.trim();
+
+        const newText = [base, cleanedSpeech].filter(Boolean).join(' ').trim();
+        const newTranscript = [baseTranscript, cleanedSpeech].filter(Boolean).join(' ').trim();
+
+        setTranscript(newTranscript);
+        setText(newText);
+
+        if (triggeredStop) {
+          isExplicitStopRef.current = true;
+          try {
+            recognition.stop();
+          } catch (err) {
+            console.error('Error stopping recognition:', err);
+          }
+          setIsRecording(false);
+        }
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
-        setIsRecording(false);
+        if (event.error !== 'no-speech') {
+          isExplicitStopRef.current = true;
+          setIsRecording(false);
+        }
       };
 
       recognition.onend = () => {
-        setIsRecording(false);
+        if (!isExplicitStopRef.current) {
+          console.log('Speech recognition ended due to idle. Restarting...');
+          setTimeout(() => {
+            if (!isExplicitStopRef.current) {
+              startRecording();
+            }
+          }, 300);
+        } else {
+          setIsRecording(false);
+        }
       };
 
       recognition.start();
@@ -132,10 +195,15 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
   };
 
   const stopRecording = () => {
+    isExplicitStopRef.current = true;
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.error('Error in stopRecording:', err);
+      }
     }
+    setIsRecording(false);
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
