@@ -63,19 +63,51 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
       };
 
       recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
+        const finalTranscripts: string[] = [];
+        const interimTranscripts: string[] = [];
 
         for (let i = 0; i < event.results.length; i++) {
           const chunk = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            finalTranscript += chunk + ' ';
+            finalTranscripts.push(chunk);
           } else {
-            interimTranscript += chunk;
+            interimTranscripts.push(chunk);
           }
         }
 
-        const combinedSpeech = (finalTranscript + interimTranscript).replace(/\s+/g, ' ').trim();
+        const mergeChunks = (chunks: string[]) => {
+          if (chunks.length === 0) return '';
+          let merged = chunks[0];
+          for (let i = 1; i < chunks.length; i++) {
+            const current = chunks[i];
+            const p = merged.toLowerCase().replace(/\s+/g, ' ').trim();
+            const c = current.toLowerCase().replace(/\s+/g, ' ').trim();
+            if (c.startsWith(p)) {
+              merged = current;
+            } else {
+              merged = merged.trim() + ' ' + current.trim();
+            }
+          }
+          return merged;
+        };
+
+        const mergedFinal = mergeChunks(finalTranscripts);
+        const mergedInterim = mergeChunks(interimTranscripts);
+
+        let combinedSpeech = '';
+        if (mergedFinal && mergedInterim) {
+          const f = mergedFinal.toLowerCase().replace(/\s+/g, ' ').trim();
+          const it = mergedInterim.toLowerCase().replace(/\s+/g, ' ').trim();
+          if (it.startsWith(f)) {
+            combinedSpeech = mergedInterim;
+          } else {
+            combinedSpeech = mergedFinal.trim() + ' ' + mergedInterim.trim();
+          }
+        } else {
+          combinedSpeech = mergedFinal || mergedInterim;
+        }
+
+        combinedSpeech = combinedSpeech.replace(/\s+/g, ' ').trim();
         setTranscript(combinedSpeech);
 
         const base = baseTextRef.current.trim();

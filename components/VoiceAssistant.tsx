@@ -68,14 +68,32 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
 
     try {
       const recognition = new SpeechRecognition();
+      let hasSent = false;
       recognition.lang = 'id-ID';
       recognition.interimResults = false;
 
       recognition.onstart = () => setIsListening(true);
       recognition.onresult = (event: any) => {
-        const spoken = event.results[0][0].transcript;
-        setInputCommand(spoken);
-        handleSend(spoken);
+        if (hasSent) return;
+
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript = event.results[i][0].transcript;
+          }
+        }
+
+        const spoken = finalTranscript || (event.results[0] && event.results[0][0] ? event.results[0][0].transcript : '');
+        if (spoken && spoken.trim()) {
+          hasSent = true;
+          setInputCommand(spoken);
+          handleSend(spoken);
+          try {
+            recognition.stop();
+          } catch (e) {
+            console.error('Stop error:', e);
+          }
+        }
       };
       recognition.onerror = () => setIsListening(false);
       recognition.onend = () => setIsListening(false);
