@@ -112,6 +112,10 @@ async function ensureNeonTable() {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
+    // Ensure the folder column exists if the table was created earlier without it
+    await sqlClient`
+      ALTER TABLE notes ADD COLUMN IF NOT EXISTS folder VARCHAR(100) DEFAULT 'Umum';
+    `;
     tableInitialized = true;
   } catch (error) {
     console.warn('Neon database init warning (falling back to local storage if needed):', error);
