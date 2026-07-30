@@ -16,10 +16,71 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface Folder {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const LOCAL_STORAGE_FILE = path.join(process.cwd(), '.data_notes.json');
+const LOCAL_FOLDERS_TAGS_FILE = path.join(process.cwd(), '.data_folders_tags.json');
 
 // Memory cache fallback for local development without DB string
 let memoryNotesCache: Note[] | null = null;
+let memoryFoldersCache: Folder[] | null = null;
+let memoryTagsCache: Tag[] | null = null;
+
+function loadLocalFoldersAndTags(): { folders: Folder[]; tags: Tag[] } {
+  if (memoryFoldersCache && memoryTagsCache) {
+    return { folders: memoryFoldersCache, tags: memoryTagsCache };
+  }
+  try {
+    if (fs.existsSync(LOCAL_FOLDERS_TAGS_FILE)) {
+      const data = fs.readFileSync(LOCAL_FOLDERS_TAGS_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      memoryFoldersCache = parsed.folders || [];
+      memoryTagsCache = parsed.tags || [];
+      return { folders: memoryFoldersCache!, tags: memoryTagsCache! };
+    }
+  } catch (err) {
+    console.error('Failed to read local folders/tags file:', err);
+  }
+
+  const defaultFolders: Folder[] = ['Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'].map((name, i) => ({
+    id: `folder_seed_${i + 1}`,
+    name,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }));
+
+  const defaultTags: Tag[] = ['Petunjuk', 'Selamat Datang', 'Catatan', 'Meeting', 'Gemini AI', 'NeonDB'].map((name, i) => ({
+    id: `tag_seed_${i + 1}`,
+    name,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }));
+
+  saveLocalFoldersAndTags(defaultFolders, defaultTags);
+  return { folders: defaultFolders, tags: defaultTags };
+}
+
+function saveLocalFoldersAndTags(folders: Folder[], tags: Tag[]): void {
+  memoryFoldersCache = folders;
+  memoryTagsCache = tags;
+  try {
+    fs.writeFileSync(LOCAL_FOLDERS_TAGS_FILE, JSON.stringify({ folders, tags }, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to write local folders/tags file:', err);
+  }
+}
 
 function loadLocalNotes(): Note[] {
   if (memoryNotesCache) return memoryNotesCache;
@@ -116,6 +177,51 @@ async function ensureNeonTable() {
     await sqlClient`
       ALTER TABLE notes ADD COLUMN IF NOT EXISTS folder VARCHAR(100) DEFAULT 'Umum';
     `;
+    
+    // Create folders table
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS folders (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    
+    // Create tags table
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS tags (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Seed folders if empty
+    const foldersCount = (await sqlClient`SELECT COUNT(*) as count FROM folders;`) as any[];
+    if (foldersCount && foldersCount[0] && parseInt(foldersCount[0].count, 10) === 0) {
+      const defaultFolders = ['Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'];
+      for (const f of defaultFolders) {
+        const id = `folder_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await sqlClient`
+          INSERT INTO folders (id, name) VALUES (${id}, ${f}) ON CONFLICT DO NOTHING;
+        `;
+      }
+    }
+
+    // Seed tags if empty
+    const tagsCount = (await sqlClient`SELECT COUNT(*) as count FROM tags;`) as any[];
+    if (tagsCount && tagsCount[0] && parseInt(tagsCount[0].count, 10) === 0) {
+      const defaultTags = ['Petunjuk', 'Selamat Datang', 'Catatan', 'Meeting', 'Gemini AI', 'NeonDB'];
+      for (const t of defaultTags) {
+        const id = `tag_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await sqlClient`
+          INSERT INTO tags (id, name) VALUES (${id}, ${t}) ON CONFLICT DO NOTHING;
+        `;
+      }
+    }
+
     tableInitialized = true;
   } catch (error) {
     console.warn('Neon database init warning (falling back to local storage if needed):', error);
@@ -217,6 +323,16 @@ export async function updateNote(id: string, updates: Partial<Note>): Promise<No
           UPDATE notes SET is_favorite = ${updates.isFavorite}, updated_at = NOW() WHERE id = ${id};
         `;
       }
+      if (updates.folder !== undefined) {
+        await sqlClient`
+          UPDATE notes SET folder = ${updates.folder}, category = ${updates.folder}, updated_at = NOW() WHERE id = ${id};
+        `;
+      }
+      if (updates.tags !== undefined) {
+        await sqlClient`
+          UPDATE notes SET tags = ${JSON.stringify(updates.tags)}::jsonb, updated_at = NOW() WHERE id = ${id};
+        `;
+      }
     } catch (err) {
       console.warn('Neon DB update error, applying locally:', err);
     }
@@ -246,4 +362,166 @@ export async function deleteNote(id: string): Promise<boolean> {
   const filtered = notes.filter(n => n.id !== id);
   saveLocalNotes(filtered);
   return true;
+}
+
+// --- Folder CRUD ---
+export async function getFolders(): Promise<Folder[]> {
+  if (sqlClient) {
+    try {
+      await ensureNeonTable();
+      const rows = await sqlClient`
+        SELECT id, name, created_at, updated_at
+        FROM folders
+        ORDER BY name ASC;
+      `;
+      return (rows as any[]).map(r => ({
+        id: r.id,
+        name: r.name,
+        createdAt: new Date(r.created_at).toISOString(),
+        updatedAt: new Date(r.updated_at).toISOString()
+      }));
+    } catch (err) {
+      console.warn('Error reading folders from Neon DB, using local store:', err);
+    }
+  }
+  return loadLocalFoldersAndTags().folders;
+}
+
+export async function createFolder(name: string): Promise<Folder> {
+  const newFolder: Folder = {
+    id: `folder_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    name,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (sqlClient) {
+    try {
+      await ensureNeonTable();
+      await sqlClient`
+        INSERT INTO folders (id, name, created_at, updated_at)
+        VALUES (${newFolder.id}, ${newFolder.name}, ${newFolder.createdAt}, ${newFolder.updatedAt});
+      `;
+      return newFolder;
+    } catch (err) {
+      console.warn('Error creating folder in Neon DB, writing to local fallback:', err);
+    }
+  }
+
+  const { folders, tags } = loadLocalFoldersAndTags();
+  if (!folders.some(f => f.name.toLowerCase() === name.toLowerCase())) {
+    folders.push(newFolder);
+    saveLocalFoldersAndTags(folders, tags);
+  }
+  return newFolder;
+}
+
+export async function updateFolder(id: string, newName: string): Promise<Folder | null> {
+  let oldName: string | null = null;
+
+  if (sqlClient) {
+    try {
+      await ensureNeonTable();
+      // Get old name
+      const rows = (await sqlClient`SELECT name FROM folders WHERE id = ${id};`) as any[];
+      if (rows && rows.length > 0) {
+        oldName = rows[0].name;
+        // Update folder name
+        await sqlClient`
+          UPDATE folders 
+          SET name = ${newName}, updated_at = NOW() 
+          WHERE id = ${id};
+        `;
+        // Update all notes with this folder name
+        if (oldName) {
+          await sqlClient`
+            UPDATE notes 
+            SET folder = ${newName}, category = ${newName}, updated_at = NOW() 
+            WHERE folder = ${oldName};
+          `;
+        }
+      }
+    } catch (err) {
+      console.warn('Neon DB folder update error, applying locally:', err);
+    }
+  }
+
+  const { folders, tags } = loadLocalFoldersAndTags();
+  const idx = folders.findIndex(f => f.id === id);
+  if (idx !== -1) {
+    const oldLocalName = folders[idx].name;
+    folders[idx] = { ...folders[idx], name: newName, updatedAt: new Date().toISOString() };
+    saveLocalFoldersAndTags(folders, tags);
+
+    // Update notes locally
+    const notes = loadLocalNotes();
+    let updatedNotesCount = 0;
+    notes.forEach(note => {
+      if (note.folder === oldLocalName) {
+        note.folder = newName;
+        note.category = newName;
+        note.updatedAt = new Date().toISOString();
+        updatedNotesCount++;
+      }
+    });
+    if (updatedNotesCount > 0) {
+      saveLocalNotes(notes);
+    }
+
+    return folders[idx];
+  }
+  return null;
+}
+
+export async function deleteFolder(id: string): Promise<boolean> {
+  let folderName: string | null = null;
+
+  if (sqlClient) {
+    try {
+      await ensureNeonTable();
+      // Get name before delete
+      const rows = (await sqlClient`SELECT name FROM folders WHERE id = ${id};`) as any[];
+      if (rows && rows.length > 0) {
+        folderName = rows[0].name;
+        // Delete folder
+        await sqlClient`DELETE FROM folders WHERE id = ${id};`;
+        // Move notes in this folder to 'Umum'
+        if (folderName) {
+          await sqlClient`
+            UPDATE notes 
+            SET folder = 'Umum', category = 'Umum', updated_at = NOW() 
+            WHERE folder = ${folderName};
+          `;
+        }
+      }
+      return true;
+    } catch (err) {
+      console.warn('Neon DB folder delete error, applying locally:', err);
+    }
+  }
+
+  const { folders, tags } = loadLocalFoldersAndTags();
+  const folderToDelete = folders.find(f => f.id === id);
+  if (folderToDelete) {
+    const nameToDelete = folderToDelete.name;
+    const filteredFolders = folders.filter(f => f.id !== id);
+    saveLocalFoldersAndTags(filteredFolders, tags);
+
+    // Update notes locally
+    const notes = loadLocalNotes();
+    let updatedNotesCount = 0;
+    notes.forEach(note => {
+      if (note.folder === nameToDelete) {
+        note.folder = 'Umum';
+        note.category = 'Umum';
+        note.updatedAt = new Date().toISOString();
+        updatedNotesCount++;
+      }
+    });
+    if (updatedNotesCount > 0) {
+      saveLocalNotes(notes);
+    }
+    return true;
+  }
+  return false;
 }

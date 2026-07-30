@@ -10,6 +10,16 @@ export default function PWAInstallPrompt() {
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    const handleForceShow = () => {
+      setShowPrompt(true);
+    };
+    window.addEventListener('show-pwa-install-prompt', handleForceShow);
+    return () => {
+      window.removeEventListener('show-pwa-install-prompt', handleForceShow);
+    };
+  }, []);
+
+  useEffect(() => {
     // 1. Check if the app is already running in standalone mode (already installed)
     const checkStandalone = () => {
       const isStandaloneMode =
@@ -109,7 +119,7 @@ export default function PWAInstallPrompt() {
   if (!showPrompt || isStandalone) return null;
 
   return (
-    <div className="fixed inset-x-4 bottom-20 sm:bottom-24 md:bottom-6 md:right-6 md:left-auto md:w-96 z-50 animate-fade-in">
+    <div className="fixed inset-x-4 bottom-20 sm:bottom-24 md:bottom-6 md:right-6 md:left-auto md:w-96 z-[99] animate-fade-in">
       <div className="rounded-2xl p-5 border border-indigo-100 shadow-2xl relative bg-white/95 backdrop-blur-xl">
         {/* Close button */}
         <button

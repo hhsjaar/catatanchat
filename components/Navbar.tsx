@@ -1,18 +1,20 @@
 'use client';
 
 import React from 'react';
-import { Mic, History, Bot } from 'lucide-react';
+import { Mic, History, Bot, FolderOpen } from 'lucide-react';
 
 interface NavbarProps {
   noteCount: number;
   onOpenHistory: () => void;
   onOpenAssistant: () => void;
+  onOpenFolderManager: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   noteCount,
   onOpenHistory,
-  onOpenAssistant
+  onOpenAssistant,
+  onOpenFolderManager
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 py-3 transition-all">
@@ -39,6 +41,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Bot className="w-4 h-4 text-indigo-600" />
             <span>Asisten Suara</span>
+          </button>
+
+          {/* Folder Manager Trigger */}
+          <button
+            onClick={onOpenFolderManager}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-xl transition-all shadow-xs active:scale-95"
+            title="Kelola Folder Catatan"
+          >
+            <FolderOpen className="w-4 h-4 text-slate-500" />
+            <span className="hidden sm:inline">Kelola Folder</span>
           </button>
 
           {/* History Drawer Trigger */}

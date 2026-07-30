@@ -10,9 +10,11 @@ import {
   Copy, 
   Check, 
   Download, 
-  Folder
+  Folder,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Note } from '@/lib/db';
+import { exportToWord, exportToExcel } from '@/lib/exportUtils';
 
 interface ReportViewModalProps {
   note: Note | null;
@@ -127,9 +129,26 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({ note, onClose 
               <button
                 onClick={handleExportPDF}
                 className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-xs"
+                title="Unduh Laporan dalam format PDF"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Unduh PDF</span>
+              </button>
+              <button
+                onClick={() => exportToWord(note)}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs"
+                title="Unduh Laporan dalam format Word"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Unduh Word</span>
+              </button>
+              <button
+                onClick={() => exportToExcel(note)}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-xs"
+                title="Unduh Laporan dalam format Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Unduh Excel</span>
               </button>
               <button
                 onClick={onClose}

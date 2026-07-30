@@ -26,5 +26,20 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/png",
       },
     ],
+    shortcuts: [
+      {
+        name: "Asisten Suara Aira",
+        short_name: "Asisten",
+        description: "Buka Asisten Suara Aira secara langsung",
+        url: "/assistant",
+        icons: [
+          {
+            src: "/icon-192.png",
+            sizes: "192x192",
+            type: "image/png"
+          }
+        ]
+      }
+    ]
   };
 }

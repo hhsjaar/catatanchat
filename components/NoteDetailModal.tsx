@@ -17,9 +17,11 @@ import {
   Calendar,
   Mic,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  FileSpreadsheet
 } from 'lucide-react';
-import { Note } from '@/lib/db';
+import { Note, Folder as FolderType, Tag as TagType } from '@/lib/db';
+import { exportToWord, exportToExcel } from '@/lib/exportUtils';
 
 interface NoteDetailModalProps {
   note: Note | null;
@@ -27,6 +29,8 @@ interface NoteDetailModalProps {
   onDelete?: (id: string) => Promise<void>;
   onGenerateReport?: (id: string, content: string) => Promise<void>;
   onParaphrase?: (id: string, content: string, style: 'formal' | 'concise' | 'bullet') => Promise<void>;
+  folders: string[];
+  onUpdateNote?: (id: string, updates: Partial<Note>) => Promise<void>;
 }
 
 export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
@@ -34,7 +38,9 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
   onClose,
   onDelete,
   onGenerateReport,
-  onParaphrase
+  onParaphrase,
+  folders,
+  onUpdateNote
 }) => {
   const [copied, setCopied] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -185,9 +191,22 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 flex items-center gap-1">
-                    <Folder className="w-3 h-3" /> {note.folder || 'Umum'}
-                  </span>
+                  <div className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                    <Folder className="w-3 h-3 text-indigo-600" />
+                    <select
+                      value={note.folder || 'Umum'}
+                      onChange={async (e) => {
+                        if (onUpdateNote && note) {
+                          await onUpdateNote(note.id, { folder: e.target.value });
+                        }
+                      }}
+                      className="bg-transparent border-none outline-none cursor-pointer text-indigo-700 text-xs font-semibold py-0 pr-1"
+                    >
+                      {folders.map(f => (
+                        <option key={f} value={f} className="text-slate-900 bg-white">{f}</option>
+                      ))}
+                    </select>
+                  </div>
                   <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
                     {new Date(note.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
@@ -214,6 +233,23 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
               <div className="p-3 bg-violet-50 rounded-xl border border-violet-100 text-xs text-violet-800 flex items-center gap-2">
                 <Mic className="w-4 h-4 text-violet-600 shrink-0" />
                 <span>Berasal dari rekaman suara langsung</span>
+              </div>
+            )}
+
+            {/* Tags / Atribut Section */}
+            {note.tags && note.tags.length > 0 && (
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Atribut / Tag</h4>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {note.tags.map(tag => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-indigo-50/60 text-indigo-700 border border-indigo-100 text-[10px] font-medium"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -251,6 +287,26 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
               >
                 <Download className="w-4 h-4" />
                 <span>Unduh PDF</span>
+              </button>
+
+              {/* Export Word Button */}
+              <button
+                onClick={() => exportToWord(note)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs active:scale-95"
+                title="Unduh Catatan dalam format Word"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Unduh Word</span>
+              </button>
+
+              {/* Export Excel Button */}
+              <button
+                onClick={() => exportToExcel(note)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-xs active:scale-95"
+                title="Unduh Catatan dalam format Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Unduh Excel</span>
               </button>
 
               {/* Text-to-Speech */}

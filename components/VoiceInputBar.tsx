@@ -6,17 +6,26 @@ import { Mic, MicOff, Send, Sparkles, X, Square, Folder } from 'lucide-react';
 interface VoiceInputBarProps {
   onSendNote: (content: string, rawTranscript?: string, autoGenerateReport?: boolean, folder?: string) => Promise<void>;
   isSubmitting?: boolean;
+  folders: string[];
 }
 
 export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
   onSendNote,
-  isSubmitting = false
+  isSubmitting = false,
+  folders
 }) => {
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [autoGenerateReport, setAutoGenerateReport] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState('Umum');
+
+  useEffect(() => {
+    if (folders.length > 0 && !folders.includes(selectedFolder)) {
+      setSelectedFolder(folders[0]);
+    }
+  }, [folders, selectedFolder]);
+
   const [speechSupported] = useState(() => {
     if (typeof window !== 'undefined') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,8 +52,6 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
-
-  const FOLDERS = ['Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'];
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -236,7 +243,7 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
           <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap flex items-center gap-1">
             <Folder className="w-3 h-3 text-indigo-500" /> Folder:
           </span>
-          {FOLDERS.map(f => (
+          {folders.map(f => (
             <button
               key={f}
               type="button"

@@ -25,6 +25,7 @@ interface HistoryDrawerProps {
   onDeleteNote: (id: string) => Promise<void>;
   onMergeNotes: (noteIds: string[]) => Promise<void>;
   onOpenDetailNote: (note: Note) => void;
+  folders: string[];
 }
 
 export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
@@ -33,14 +34,15 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   notes,
   onDeleteNote,
   onMergeNotes,
-  onOpenDetailNote
+  onOpenDetailNote,
+  folders
 }) => {
   const [search, setSearch] = useState('');
   const [activeFolderTab, setActiveFolderTab] = useState('Semua');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isMerging, setIsMerging] = useState(false);
 
-  const FOLDER_TABS = ['Semua', 'Umum', 'Pekerjaan', 'Pribadi', 'Ide', 'Meeting'];
+  const folderTabs = ['Semua', ...folders];
 
   const filteredNotes = notes.filter(n => {
     const matchesSearch = 
@@ -125,7 +127,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
 
             {/* Folder Filter Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-              {FOLDER_TABS.map(tab => (
+              {folderTabs.map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveFolderTab(tab)}
