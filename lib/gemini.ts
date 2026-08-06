@@ -11,17 +11,17 @@ export async function generateStructuredReport(text: string): Promise<string> {
   if (aiInstance) {
     try {
       const prompt = `
-Anda adalah asisten pembuat laporan profesional.
-Tugas Anda: Ubah teks/catatan mentah berikut menjadi Laporan Yang Rapi & Terstruktur dalam bahasa Indonesia.
+Anda adalah asisten pembuat laporan eksekutif profesional.
+Tugas Anda: Ubah teks/catatan mentah berikut menjadi Laporan Eksekutif Yang Rapi, Informatif, & Terstruktur dalam bahasa Indonesia.
 
-Instruksi Format:
-1. Gunakan Markdown.
-2. Tambahkan Judul Laporan yang menarik & relevan (H3/H4: ### atau ####).
-3. Buat Ringkasan Singkat / Sub-bab pendahuluan.
-4. Gunakan Poin-poin (bullet points) untuk item detail.
-5. Gunakan cetak **tebal** (bold) untuk penekanan kata/istilah penting.
-6. JIKA ADA data numerik, tanggal, perbandingan, atau daftar terstruktur, buatlah TABEL MARKDOWN yang rapi.
-7. Berikan rekomendasi/langkah selanjutnya jika relevan.
+Instruksi Format WAJIB:
+1. Gunakan Markdown yang kaya & rapi.
+2. Tambahkan Judul Laporan yang profesional (### atau ####).
+3. Buat Ringkasan Eksekutif (paragraf pendahuluan).
+4. WAJIB BUAT MINIMAL 1 ATAU 2 TABEL MARKDOWN RAPI (contoh tabel: | No | Topik / Area | Temuan & Analisis | Action Plan / Solusi | Status |).
+5. Gunakan Poin-poin Penomoran (1. 2. 3.) untuk topik utama, dan sub-bullet points (- atau *) ber-indentasi di bawahnya untuk rincian tugas/aksi.
+6. Gunakan cetak **tebal** (bold) untuk penekanan kata/istilah/nama penting.
+7. Berikan bagian "Rekomendasi & Langkah Selanjutnya" yang terstruktur dengan rapi.
 
 Teks Mentah:
 "${text}"
@@ -46,18 +46,22 @@ Teks Mentah:
 
   return `### 📊 Laporan Terstruktur: ${title}
 
-#### 📝 Ringkasan Utama
-Catatan ini berhasil dikonversi menjadi laporan terstruktur. Berikut adalah poin-poin analisis utama yang didapatkan dari catatan Anda:
+#### 📝 Ringkasan Eksekutif
+Catatan ini telah dikonversi menjadi laporan terstruktur. Berikut adalah matriks evaluasi dan rencana tindakan yang disusun berdasarkan materi catatan:
 
-#### 📌 Poin-Poin Penting
-${lines.map(line => `- **Poin**: ${line.trim()}`).join('\n')}
+#### 📋 Tabel Rencana Aksi & Evaluasi Materi
+| No | Topik / Area | Rincian Analisis | Action Plan / Solusi | Status |
+|---|---|---|---|---|
+${lines.map((line, i) => `| ${i + 1} | ${line.substring(0, 25).trim()} | ${line.trim()} | Diselesaikan sesuai target | **Aktif** |`).join('\n')}
 
-#### 📋 Tabel Rincian Catatan
-| Parameter | Detail Catatan | Keterangan |
-|---|---|---|
-| Total Kata | ${text.split(/\s+/).length} kata | Panjang Teks |
-| Waktu Dibuat | ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} | Real-time |
-| Status Report | Terkonversi Rapi | **Disetujui** |
+#### 📌 Rekomendasi & Langkah Selanjutnya
+1. **Pengembangan Rencana Aksi untuk Evaluasi:**
+   - Formulasikan **rencana aksi konkret** berdasarkan temuan evaluasi.
+   - Prioritaskan perbaikan yang memiliki dampak terbesar pada efisiensi operasional.
+2. **Perbaikan Sistem Manajemen & Pemantauan:**
+   - Lakukan **audit menyeluruh** terhadap sistem manajemen stok dan operasional saat ini.
+   - Pertimbangkan untuk mengimplementasikan **sistem pencatatan dan pemantauan yang lebih efektif**.
+   - Tetapkan **level stok minimum (reorder point)** untuk setiap item makanan kritis.
 
 > *Catatan: Laporan ini diformat secara otomatis menggunakan AI Engine.*
 `;

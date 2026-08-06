@@ -191,8 +191,9 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
-                    <Folder className="w-3 h-3 text-indigo-600" />
+                  <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-1 rounded-xl text-xs font-semibold hover:bg-indigo-100/70 transition-colors">
+                    <Folder className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span className="text-[11px] text-indigo-500 font-medium">Folder:</span>
                     <select
                       value={note.folder || 'Umum'}
                       onChange={async (e) => {
@@ -200,10 +201,11 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
                           await onUpdateNote(note.id, { folder: e.target.value });
                         }
                       }}
-                      className="bg-transparent border-none outline-none cursor-pointer text-indigo-700 text-xs font-semibold py-0 pr-1"
+                      className="bg-transparent border-none outline-none cursor-pointer text-indigo-800 text-xs font-bold py-0 pr-1"
+                      title="Klik untuk pindah folder"
                     >
                       {folders.map(f => (
-                        <option key={f} value={f} className="text-slate-900 bg-white">{f}</option>
+                        <option key={f} value={f} className="text-slate-900 bg-white font-medium">{f}</option>
                       ))}
                     </select>
                   </div>

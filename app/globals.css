@@ -63,7 +63,7 @@ body {
 }
 
 .prose-report ul, .prose-report ol {
-  padding-left: 1.25rem;
+  padding-left: 1.5rem;
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
 }
@@ -72,31 +72,46 @@ body {
 .prose-report ol { list-style-type: decimal; }
 
 .prose-report li {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.prose-report li > ul, .prose-report li > ol {
+  padding-left: 1.5rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.prose-report li > ul {
+  list-style-type: disc;
 }
 
 .prose-report table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 0.75rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.875rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
   background-color: #ffffff;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   border-radius: 0.5rem;
   overflow: hidden;
+  border: 1px solid #cbd5e1;
 }
 
 .prose-report th, .prose-report td {
-  border: 1px solid #e2e8f0;
-  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  padding: 0.6rem 0.85rem;
   text-align: left;
 }
 
 .prose-report th {
-  background-color: #f8fafc;
+  background-color: #4f46e5;
   font-weight: 600;
-  color: #334155;
+  color: #ffffff;
+}
+
+.prose-report tr:nth-child(even) td {
+  background-color: #f8fafc;
 }
 
 .prose-report blockquote {

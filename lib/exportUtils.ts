@@ -5,53 +5,79 @@ export interface ExcelTable {
   rows: string[][];
 }
 
-// Simple markdown-to-HTML parser for Word exports
+// Helper function to format inline markdown elements (bold, italic, code) with MS Word compatibility
+function formatInlineMarkdown(text: string): string {
+  if (!text) return '';
+  return text
+    // Code inline
+    .replace(/`([^`]+)`/g, '<code style="background-color: #f1f5f9; padding: 2px 5px; font-family: Consolas, monospace; border-radius: 4px; font-size: 0.9em; color: #4338ca;">$1</code>')
+    // Bold with ** or __
+    .replace(/\*\*(.*?)\*\*/g, '<b><strong style="font-weight: bold; mso-bidi-font-weight: bold; color: #0f172a;">$1</strong></b>')
+    .replace(/__(.*?)__/g, '<b><strong style="font-weight: bold; mso-bidi-font-weight: bold; color: #0f172a;">$1</strong></b>')
+    // Italic with * or _
+    .replace(/\*(.*?)\*/g, '<i><em style="font-style: italic;">$1</em></i>')
+    .replace(/_(.*?)_/g, '<i><em style="font-style: italic;">$1</em></i>');
+}
+
+// Comprehensive markdown-to-HTML parser for Word & rich exports
 export function parseMarkdownToHtml(markdown: string): string {
   if (!markdown) return '';
-  
-  // Replace bold and italics
-  let html = markdown
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>');
 
-  const lines = html.split('\n');
+  const lines = markdown.split('\n');
   let outputHtml = '';
-  let inList = false;
+
+  type ListType = 'ol' | 'ul';
+  interface ListState {
+    type: ListType;
+    indent: number;
+  }
+  const listStack: ListState[] = [];
+  let openLi = false;
+
   let inTable = false;
   let tableHeaders: string[] = [];
   let tableRows: string[][] = [];
 
+  const closeAllLists = () => {
+    while (listStack.length > 0) {
+      if (openLi) {
+        outputHtml += '</li>\n';
+        openLi = false;
+      }
+      const top = listStack.pop();
+      if (top) {
+        outputHtml += `</${top.type}>\n`;
+      }
+    }
+  };
+
   const flushTable = () => {
     if (tableHeaders.length > 0 || tableRows.length > 0) {
       const headerHtml = tableHeaders.length > 0
-        ? `<tr>${tableHeaders.map(h => `<th style="background-color: #f1f5f9; font-weight: bold; border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; white-space: nowrap;">${h}</th>`).join('')}</tr>`
+        ? `<thead><tr>${tableHeaders.map(h => `<th style="background-color: #4f46e5; background: #4f46e5; color: #ffffff; font-weight: bold; border: 1pt solid #cbd5e1; padding: 8pt 10pt; text-align: left;">${formatInlineMarkdown(h)}</th>`).join('')}</tr></thead>`
         : '';
-      const rowsHtml = tableRows.map(row => `<tr>${row.map(cell => `<td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left;">${cell}</td>`).join('')}</tr>`).join('');
-      outputHtml += `<table style="border-collapse: collapse; width: auto; margin: 15px 0; border: 1px solid #cbd5e1;">${headerHtml}${rowsHtml}</table>\n`;
+      const rowsHtml = tableRows.map((row, idx) => {
+        const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        return `<tr>${row.map(cell => `<td style="border: 1pt solid #cbd5e1; padding: 7pt 10pt; text-align: left; vertical-align: top; background-color: ${bg};">${formatInlineMarkdown(cell)}</td>`).join('')}</tr>`;
+      }).join('');
+      outputHtml += `<table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; width: 100%; margin-top: 12pt; margin-bottom: 12pt; border: 1pt solid #cbd5e1; font-size: 10pt;">${headerHtml}<tbody>${rowsHtml}</tbody></table>\n`;
       tableHeaders = [];
       tableRows = [];
     }
     inTable = false;
   };
 
-  const flushList = () => {
-    if (inList) {
-      outputHtml += `</ul>\n`;
-      inList = false;
-    }
-  };
-
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Table checking
+    // 1. Table Detection
     if (trimmed.startsWith('|')) {
-      flushList();
+      closeAllLists();
       inTable = true;
       const cells = trimmed.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
       
-      // Separator line?
+      // Check if divider line like |---|---|
       if (cells.every(c => /^[-:]+$/.test(c))) {
         continue;
       }
@@ -62,43 +88,91 @@ export function parseMarkdownToHtml(markdown: string): string {
         tableRows.push(cells);
       }
       continue;
-    } else {
-      if (inTable) {
-        flushTable();
-      }
+    } else if (inTable) {
+      flushTable();
     }
 
-    // List checking
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      if (!inList) {
-        inList = true;
-        outputHtml += `<ul>\n`;
+    // 2. List Item Detection (Ordered or Unordered)
+    const indentMatch = line.match(/^(\s*)/);
+    const indentLength = indentMatch ? indentMatch[1].length : 0;
+    const isBullet = /^[-*]\s+/.test(trimmed);
+    const isNumber = /^\d+\.\s+/.test(trimmed);
+
+    if (isBullet || isNumber) {
+      const targetType: ListType = isBullet ? 'ul' : 'ol';
+      const itemContent = isBullet ? trimmed.replace(/^[-*]\s+/, '') : trimmed.replace(/^\d+\.\s+/, '');
+
+      if (listStack.length === 0) {
+        const listStyle = targetType === 'ol'
+          ? 'margin-top: 4pt; margin-bottom: 6pt; margin-left: 24pt; padding-left: 0cm; list-style-type: decimal; color: #0f172a; mso-para-margin-left: 2.0gd;'
+          : 'margin-top: 4pt; margin-bottom: 6pt; margin-left: 24pt; padding-left: 0cm; list-style-type: disc; color: #1e293b; mso-para-margin-left: 2.0gd;';
+        outputHtml += `<${targetType} style="${listStyle}">\n`;
+        listStack.push({ type: targetType, indent: indentLength });
+      } else {
+        const topState = listStack[listStack.length - 1];
+        if (topState.type === targetType && indentLength <= topState.indent) {
+          // Same level list item
+          if (openLi) {
+            outputHtml += '</li>\n';
+            openLi = false;
+          }
+        } else if (targetType === 'ul' && topState.type === 'ol') {
+          // Sub-bullet point under an ordered item!
+          const nestedStyle = 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 48pt; padding-left: 0cm; list-style-type: disc; color: #1e293b; mso-para-margin-left: 4.0gd;';
+          outputHtml += `\n<ul style="${nestedStyle}">\n`;
+          listStack.push({ type: 'ul', indent: indentLength });
+        } else if (targetType === 'ol' && topState.type === 'ul') {
+          // Pop nested ul and continue parent ol
+          if (openLi) {
+            outputHtml += '</li>\n';
+            openLi = false;
+          }
+          const popped = listStack.pop();
+          if (popped) {
+            outputHtml += `</${popped.type}>\n`;
+          }
+          if (openLi) {
+            outputHtml += '</li>\n';
+            openLi = false;
+          }
+        } else if (indentLength > topState.indent) {
+          // Indented sub-level
+          const nestedStyle = targetType === 'ol'
+            ? 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 48pt; padding-left: 0cm; list-style-type: decimal; color: #0f172a; mso-para-margin-left: 4.0gd;'
+            : 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 48pt; padding-left: 0cm; list-style-type: disc; color: #1e293b; mso-para-margin-left: 4.0gd;';
+          outputHtml += `\n<${targetType} style="${nestedStyle}">\n`;
+          listStack.push({ type: targetType, indent: indentLength });
+        }
       }
-      outputHtml += `<li>${trimmed.substring(2)}</li>\n`;
+
+      outputHtml += `<li style="margin-top: 0cm; margin-bottom: 4pt; line-height: 1.5; mso-line-height-rule: exactly; font-size: 11pt;">${formatInlineMarkdown(itemContent)}`;
+      openLi = true;
       continue;
-    } else {
-      flushList();
     }
 
-    // Headings and blockquotes
-    if (trimmed.startsWith('### ')) {
-      outputHtml += `<h3>${trimmed.substring(4)}</h3>\n`;
+    // Not a list item
+    closeAllLists();
+
+    // 3. Headings & Blockquotes
+    if (trimmed.startsWith('#### ')) {
+      outputHtml += `<h4 style="mso-style-name:'Heading 4'; color: #475569; font-size: 11pt; font-weight: bold; margin-top: 10pt; margin-bottom: 3pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(5))}</h4>\n`;
+    } else if (trimmed.startsWith('### ')) {
+      outputHtml += `<h3 style="mso-style-name:'Heading 3'; color: #334155; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(4))}</h3>\n`;
     } else if (trimmed.startsWith('## ')) {
-      outputHtml += `<h2>${trimmed.substring(3)}</h2>\n`;
+      outputHtml += `<h2 style="mso-style-name:'Heading 2'; color: #1e293b; font-size: 14pt; font-weight: bold; margin-top: 14pt; margin-bottom: 5pt; border-bottom: 1pt solid #cbd5e1; padding-bottom: 3pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(3))}</h2>\n`;
     } else if (trimmed.startsWith('# ')) {
-      outputHtml += `<h1>${trimmed.substring(2)}</h1>\n`;
+      outputHtml += `<h1 style="mso-style-name:'Heading 1'; color: #1e1b4b; font-size: 18pt; font-weight: bold; margin-top: 16pt; margin-bottom: 6pt; border-bottom: 2pt solid #4f46e5; padding-bottom: 4pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(2))}</h1>\n`;
     } else if (trimmed.startsWith('> ')) {
-      outputHtml += `<blockquote style="border-left: 3px solid #6366f1; padding-left: 10px; color: #475569; font-style: italic; margin: 10px 0; background-color: #f8fafc; padding-top: 5px; padding-bottom: 5px;">${trimmed.substring(2)}</blockquote>\n`;
+      outputHtml += `<blockquote style="border-left: 4pt solid #6366f1; background-color: #f8fafc; padding: 6pt 10pt; margin: 8pt 0; color: #334155; font-style: italic; border-radius: 4px;">${formatInlineMarkdown(trimmed.substring(2))}</blockquote>\n`;
     } else if (trimmed === '') {
-      outputHtml += `<br/>\n`;
+      outputHtml += `<div style="height: 6pt;"></div>\n`;
     } else {
-      outputHtml += `<p style="margin: 8px 0; line-height: 1.5;">${trimmed}</p>\n`;
+      outputHtml += `<p style="margin-top: 0cm; margin-bottom: 6pt; line-height: 1.5; mso-line-height-rule: exactly; color: #1e293b; font-size: 11pt;">${formatInlineMarkdown(trimmed)}</p>\n`;
     }
   }
 
-  // Flush remaining elements
   if (inTable) flushTable();
-  if (inList) flushList();
+  closeAllLists();
 
   return outputHtml;
 }
@@ -234,9 +308,12 @@ export function generateExcelHtml(tables: ExcelTable[]): string {
 // Download functions
 export function exportToWord(note: Note) {
   const formattedDate = new Date(note.createdAt).toLocaleDateString('id-ID', {
+    weekday: 'long',
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
   });
 
   const parsedContent = parseMarkdownToHtml(note.content);
@@ -247,34 +324,69 @@ export function exportToWord(note: Note) {
     <head>
       <meta charset="utf-8">
       <title>${note.folder || 'Catatan'}</title>
+      <!--[if gte mso 9]>
+      <xml>
+        <w:WordDocument>
+          <w:View>Print</w:View>
+          <w:Zoom>100</w:Zoom>
+          <w:DoNotOptimizeForCustomXSL/>
+        </w:WordDocument>
+      </xml>
+      <![endif]-->
       <style>
-        body { font-family: 'Calibri', 'Arial', sans-serif; line-height: 1.6; color: #1e293b; }
-        h1 { color: #1e1b4b; font-size: 24px; border-bottom: 2px solid #4f46e5; padding-bottom: 5px; }
-        h2 { color: #334155; font-size: 18px; margin-top: 20px; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; }
-        h3 { color: #475569; font-size: 14px; margin-top: 15px; }
-        p { margin: 8px 0; }
-        table { border-collapse: collapse; width: auto; margin: 15px 0; }
-        th { background-color: #f1f5f9; font-weight: bold; border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; }
-        td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; }
-        blockquote { border-left: 3px solid #6366f1; padding-left: 10px; color: #475569; font-style: italic; margin: 10px 0; background-color: #f8fafc; padding-top: 5px; padding-bottom: 5px; }
-        .meta { color: #64748b; font-size: 12px; margin-bottom: 20px; }
-        .badge { background-color: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
+        @page { size: A4; margin: 1.0in 1.0in 1.0in 1.0in; mso-header-margin: 0.5in; mso-footer-margin: 0.5in; }
+        body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11.0pt; line-height: 1.5; mso-line-height-rule: exactly; color: #0f172a; margin: 0; padding: 0; }
+        p.MsoNormal, li.MsoNormal, div.MsoNormal { margin-top: 0cm; margin-bottom: 6.0pt; line-height: 1.5; mso-line-height-rule: exactly; font-family: 'Calibri', 'Arial', sans-serif; font-size: 11.0pt; color: #0f172a; }
+        h1 { mso-style-name: "Heading 1"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 18.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e1b4b; margin-top: 16.0pt; margin-bottom: 6.0pt; border-bottom: 2pt solid #4f46e5; padding-bottom: 4.0pt; }
+        h2 { mso-style-name: "Heading 2"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 14.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e293b; margin-top: 14.0pt; margin-bottom: 5.0pt; border-bottom: 1pt solid #cbd5e1; padding-bottom: 3.0pt; }
+        h3 { mso-style-name: "Heading 3"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 12.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #334155; margin-top: 12.0pt; margin-bottom: 4.0pt; }
+        h4 { mso-style-name: "Heading 4"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 11.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #475569; margin-top: 10.0pt; margin-bottom: 3.0pt; }
+        ul { margin-top: 4.0pt; margin-bottom: 8.0pt; margin-left: 24.0pt; padding-left: 0cm; list-style-type: disc; mso-para-margin-left: 2.0gd; }
+        ol { margin-top: 4.0pt; margin-bottom: 8.0pt; margin-left: 24.0pt; padding-left: 0cm; list-style-type: decimal; mso-para-margin-left: 2.0gd; }
+        ul ul, ol ul { margin-top: 3.0pt; margin-bottom: 4.0pt; margin-left: 48.0pt; padding-left: 0cm; list-style-type: disc; mso-para-margin-left: 4.0gd; }
+        li { margin-top: 0cm; margin-bottom: 4.0pt; line-height: 1.5; mso-line-height-rule: exactly; font-size: 11.0pt; }
+        strong, b { font-weight: bold; mso-bidi-font-weight: bold; color: #0f172a; }
+        table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; width: 100%; margin-top: 12.0pt; margin-bottom: 12.0pt; font-size: 10.0pt; }
+        th { background-color: #4f46e5; background: #4f46e5; color: #ffffff; font-weight: bold; mso-bidi-font-weight: bold; border: 1pt solid #cbd5e1; padding: 7.0pt 10.0pt; text-align: left; }
+        td { border: 1pt solid #cbd5e1; padding: 7.0pt 10.0pt; text-align: left; vertical-align: top; }
+        tr:nth-child(even) td { background-color: #f8fafc; }
+        blockquote { border-left: 4.0pt solid #6366f1; background-color: #f8fafc; padding: 6.0pt 10.0pt; margin: 8.0pt 0; color: #334155; font-style: italic; }
+        p { margin-top: 0cm; margin-bottom: 6.0pt; line-height: 1.5; mso-line-height-rule: exactly; }
+        .header-card { background-color: #f8fafc; border: 1pt solid #e2e8f0; border-left: 6.0pt solid #4f46e5; padding: 14.0pt 18.0pt; margin-bottom: 18.0pt; }
+        .doc-title { font-size: 18.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e1b4b; margin: 0 0 6.0pt 0; }
+        .meta-row { font-size: 9.5pt; color: #64748b; margin-top: 4.0pt; }
+        .badge-folder { background-color: #e0e7ff; color: #3730a3; padding: 3.0pt 10.0pt; font-weight: bold; mso-bidi-font-weight: bold; font-size: 9.0pt; }
+        .section-title { font-size: 13.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e293b; margin-top: 18.0pt; margin-bottom: 8.0pt; border-bottom: 2.0pt solid #6366f1; padding-bottom: 4.0pt; text-transform: uppercase; letter-spacing: 0.5pt; }
+        .section-box { background-color: #ffffff; border: 1pt solid #e2e8f0; padding: 14.0pt 18.0pt; margin-bottom: 16.0pt; }
+        .report-box { background-color: #f0fdf4; border: 1pt solid #bbf7d0; border-left: 5.0pt solid #10b981; padding: 14.0pt 18.0pt; margin-bottom: 16.0pt; }
+        .footer-note { border-top: 1pt solid #e2e8f0; padding-top: 10.0pt; font-size: 8.5pt; color: #94a3b8; text-align: center; margin-top: 24.0pt; }
       </style>
     </head>
     <body>
-      <h1>Laporan Catatan: ${note.folder || 'Umum'}</h1>
-      <div class="meta">
-        <span class="badge">Folder: ${note.folder || 'Umum'}</span> &bull; 
-        <span>Dibuat pada: ${formattedDate}</span>
+      <div class="header-card">
+        <div class="doc-title">Laporan Catatan: ${note.folder || 'Umum'}</div>
+        <div class="meta-row">
+          <span class="badge-folder">Folder: ${note.folder || 'Umum'}</span> &bull; 
+          <span>Dibuat pada: ${formattedDate}</span>
+          ${note.rawAudioTranscript ? ' &bull; <span>[Sumber: Rekaman Suara]</span>' : ''}
+        </div>
       </div>
-      
-      <h2>Isi Catatan Utama</h2>
-      <div>${parsedContent}</div>
-      
+
+      <div class="section-title">Isi Catatan Utama</div>
+      <div class="section-box">
+        ${parsedContent}
+      </div>
+
       ${note.formattedReport ? `
-        <h2>Laporan Terstruktur (AI)</h2>
-        <div>${parsedReport}</div>
+        <div class="section-title" style="color: #047857; border-bottom-color: #10b981;">Laporan Terstruktur (Hasil AI)</div>
+        <div class="report-box">
+          ${parsedReport}
+        </div>
       ` : ''}
+
+      <div class="footer-note">
+        Dokumen Laporan Catatan Suara &bull; Diekspor otomatis pada ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+      </div>
     </body>
     </html>
   `;

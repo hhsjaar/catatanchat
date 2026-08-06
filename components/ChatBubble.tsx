@@ -18,17 +18,24 @@ interface ChatBubbleProps {
   note: Note;
   onOpenDetail: (note: Note) => void;
   onDelete: (noteId: string) => Promise<void>;
+  folders?: string[];
+  onUpdateFolder?: (noteId: string, newFolder: string) => Promise<void>;
 }
 
 export const ChatBubble: React.FC<ChatBubbleProps> = ({
   note,
   onOpenDetail,
-  onDelete
+  onDelete,
+  folders,
+  onUpdateFolder
 }) => {
-  const formattedTime = new Date(note.createdAt).toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const dateObj = new Date(note.createdAt);
+  const now = new Date();
+  const isToday = dateObj.toDateString() === now.toDateString();
+
+  const formattedDateTime = isToday
+    ? `Hari ini, ${dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
+    : dateObj.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
   // Extract compact title / keyword preview
   const firstLine = note.content.split('\n')[0].trim();
@@ -63,8 +70,28 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           {/* Top Bar: Folder & Time */}
           <div className="flex items-center justify-between gap-2 mb-1.5 text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 bg-indigo-100/80 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-indigo-200/60">
-                <Folder className="w-3 h-3" /> {note.folder || note.category || 'Umum'}
+              <span 
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 bg-indigo-100/90 hover:bg-indigo-200/80 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-indigo-200/80 transition-colors"
+              >
+                <Folder className="w-3 h-3 text-indigo-600 shrink-0" />
+                {folders && folders.length > 0 && onUpdateFolder ? (
+                  <select
+                    value={note.folder || note.category || 'Umum'}
+                    onChange={async (e) => {
+                      e.stopPropagation();
+                      await onUpdateFolder(note.id, e.target.value);
+                    }}
+                    className="bg-transparent border-none outline-none cursor-pointer text-indigo-700 font-semibold py-0 pr-0.5 text-[10px]"
+                    title="Pindah Folder"
+                  >
+                    {folders.map(f => (
+                      <option key={f} value={f} className="text-slate-900 bg-white font-medium">{f}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span>{note.folder || note.category || 'Umum'}</span>
+                )}
               </span>
               {note.rawAudioTranscript && (
                 <span className="inline-flex items-center gap-1 bg-violet-50 text-violet-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-violet-100">
@@ -77,7 +104,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-slate-400 font-mono shrink-0">{formattedTime}</span>
+            <span className="text-[11px] text-slate-400 font-mono shrink-0">{formattedDateTime}</span>
           </div>
 
           {/* Note Content Preview */}

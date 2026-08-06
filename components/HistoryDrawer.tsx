@@ -26,6 +26,7 @@ interface HistoryDrawerProps {
   onMergeNotes: (noteIds: string[]) => Promise<void>;
   onOpenDetailNote: (note: Note) => void;
   folders: string[];
+  onUpdateFolder?: (noteId: string, newFolder: string) => Promise<void>;
 }
 
 export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
@@ -35,7 +36,8 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   onDeleteNote,
   onMergeNotes,
   onOpenDetailNote,
-  folders
+  folders,
+  onUpdateFolder
 }) => {
   const [search, setSearch] = useState('');
   const [activeFolderTab, setActiveFolderTab] = useState('Semua');
@@ -44,17 +46,20 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
 
   const folderTabs = ['Semua', ...folders];
 
-  const filteredNotes = notes.filter(n => {
-    const matchesSearch = 
-      n.content.toLowerCase().includes(search.toLowerCase()) ||
-      (n.formattedReport && n.formattedReport.toLowerCase().includes(search.toLowerCase())) ||
-      (n.folder && n.folder.toLowerCase().includes(search.toLowerCase()));
+  const filteredNotes = notes
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .filter(n => {
+      const matchesSearch = 
+        n.content.toLowerCase().includes(search.toLowerCase()) ||
+        (n.formattedReport && n.formattedReport.toLowerCase().includes(search.toLowerCase())) ||
+        (n.folder && n.folder.toLowerCase().includes(search.toLowerCase()));
 
-    const noteFolder = n.folder || n.category || 'Umum';
-    const matchesFolder = activeFolderTab === 'Semua' || noteFolder === activeFolderTab;
+      const noteFolder = n.folder || n.category || 'Umum';
+      const matchesFolder = activeFolderTab === 'Semua' || noteFolder === activeFolderTab;
 
-    return matchesSearch && matchesFolder;
-  });
+      return matchesSearch && matchesFolder;
+    });
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -197,8 +202,28 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                             <Square className="w-4 h-4 text-slate-300 shrink-0 hover:text-slate-500" />
                           )}
                         </button>
-                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-indigo-100">
-                          <Folder className="w-3 h-3" /> {n.folder || n.category || 'Umum'}
+                        <span 
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-indigo-100 transition-colors"
+                        >
+                          <Folder className="w-3 h-3 text-indigo-600 shrink-0" />
+                          {onUpdateFolder && folders.length > 0 ? (
+                            <select
+                              value={n.folder || n.category || 'Umum'}
+                              onChange={async (e) => {
+                                e.stopPropagation();
+                                await onUpdateFolder(n.id, e.target.value);
+                              }}
+                              className="bg-transparent border-none outline-none cursor-pointer text-indigo-700 font-semibold py-0 pr-0.5 text-[10px]"
+                              title="Pindah Folder"
+                            >
+                              {folders.map(f => (
+                                <option key={f} value={f} className="text-slate-900 bg-white font-medium">{f}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span>{n.folder || n.category || 'Umum'}</span>
+                          )}
                         </span>
                         {n.rawAudioTranscript && (
                           <span className="text-[10px] bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-full font-medium border border-violet-100 flex items-center gap-0.5">

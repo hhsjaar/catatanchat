@@ -258,7 +258,8 @@ export async function getNotes(): Promise<{ notes: Note[]; isNeon: boolean }> {
     }
   }
 
-  return { notes: loadLocalNotes(), isNeon: false };
+  const local = loadLocalNotes().slice().sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  return { notes: local, isNeon: false };
 }
 
 export async function createNote(data: {
@@ -299,7 +300,7 @@ export async function createNote(data: {
   }
 
   const notes = loadLocalNotes();
-  notes.push(newNote);
+  notes.unshift(newNote);
   saveLocalNotes(notes);
   return newNote;
 }
@@ -333,6 +334,29 @@ export async function updateNote(id: string, updates: Partial<Note>): Promise<No
           UPDATE notes SET tags = ${JSON.stringify(updates.tags)}::jsonb, updated_at = NOW() WHERE id = ${id};
         `;
       }
+
+      const rows = (await sqlClient`
+        SELECT id, content, raw_audio_transcript, formatted_report, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at
+        FROM notes
+        WHERE id = ${id};
+      `) as any[];
+
+      if (rows && rows.length > 0) {
+        const r = rows[0];
+        return {
+          id: r.id,
+          content: r.content,
+          rawAudioTranscript: r.raw_audio_transcript,
+          formattedReport: r.formatted_report,
+          tags: Array.isArray(r.tags) ? r.tags : (typeof r.tags === 'string' ? JSON.parse(r.tags) : []),
+          category: r.category || r.folder || 'Umum',
+          folder: r.folder || r.category || 'Umum',
+          isFavorite: Boolean(r.is_favorite),
+          isAiGenerated: Boolean(r.is_ai_generated),
+          createdAt: new Date(r.created_at).toISOString(),
+          updatedAt: new Date(r.updated_at).toISOString()
+        };
+      }
     } catch (err) {
       console.warn('Neon DB update error, applying locally:', err);
     }
@@ -341,7 +365,14 @@ export async function updateNote(id: string, updates: Partial<Note>): Promise<No
   const notes = loadLocalNotes();
   const idx = notes.findIndex(n => n.id === id);
   if (idx !== -1) {
-    notes[idx] = { ...notes[idx], ...updates, updatedAt: new Date().toISOString() };
+    const updatedFolder = updates.folder || updates.category || notes[idx].folder || 'Umum';
+    notes[idx] = {
+      ...notes[idx],
+      ...updates,
+      folder: updatedFolder,
+      category: updatedFolder,
+      updatedAt: new Date().toISOString()
+    };
     saveLocalNotes(notes);
     return notes[idx];
   }

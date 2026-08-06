@@ -109,6 +109,23 @@ export default function DashboardContainer({
   };
 
   const handleUpdateNote = async (id: string, updates: Partial<Note>) => {
+    // Optimistically update local notes & activeDetailNote state immediately
+    setNotes(prev => prev.map(n => n.id === id ? {
+      ...n,
+      ...updates,
+      folder: updates.folder || n.folder,
+      category: updates.folder || updates.category || n.category
+    } : n));
+
+    if (activeDetailNote && activeDetailNote.id === id) {
+      setActiveDetailNote(prev => prev ? {
+        ...prev,
+        ...updates,
+        folder: updates.folder || prev.folder,
+        category: updates.folder || updates.category || prev.category
+      } : null);
+    }
+
     try {
       const res = await fetch('/api/notes', {
         method: 'PATCH',
@@ -252,7 +269,7 @@ export default function DashboardContainer({
       />
 
       {/* Main Single-Page Chat Stream */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 pb-36">
+      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 pb-44 sm:pb-48">
         {/* Intro Room Header */}
         <div className="my-3 p-4 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -290,6 +307,8 @@ export default function DashboardContainer({
                 note={note}
                 onOpenDetail={n => setActiveDetailNote(n)}
                 onDelete={handleDeleteNote}
+                folders={folders.map(f => f.name)}
+                onUpdateFolder={(id, folder) => handleUpdateNote(id, { folder })}
               />
             ))}
           </div>
@@ -325,6 +344,7 @@ export default function DashboardContainer({
           setActiveDetailNote(n);
         }}
         folders={folders.map(f => f.name)}
+        onUpdateFolder={(id, folder) => handleUpdateNote(id, { folder })}
       />
 
       <VoiceAssistant
