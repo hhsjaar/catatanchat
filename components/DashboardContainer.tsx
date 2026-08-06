@@ -330,6 +330,7 @@ export default function DashboardContainer({
         onSendNote={handleSendNote}
         isSubmitting={isSubmittingNote}
         folders={folders.map(f => f.name)}
+        onOpenFolderManager={() => setIsFolderManagerOpen(true)}
       />
 
       {/* Slide-over & Modals */}
@@ -345,6 +346,7 @@ export default function DashboardContainer({
         }}
         folders={folders.map(f => f.name)}
         onUpdateFolder={(id, folder) => handleUpdateNote(id, { folder })}
+        onOpenFolderManager={() => setIsFolderManagerOpen(true)}
       />
 
       <VoiceAssistant
@@ -371,6 +373,7 @@ export default function DashboardContainer({
         isOpen={isFolderManagerOpen}
         onClose={() => setIsFolderManagerOpen(false)}
         folders={folders}
+        notes={notes}
         onAddFolder={handleAddFolder}
         onEditFolder={handleEditFolder}
         onDeleteFolder={handleDeleteFolder}

@@ -14,7 +14,8 @@ import {
   Calendar,
   Folder,
   ChevronRight,
-  Mic
+  Mic,
+  FolderOpen
 } from 'lucide-react';
 import { Note } from '@/lib/db';
 
@@ -27,6 +28,7 @@ interface HistoryDrawerProps {
   onOpenDetailNote: (note: Note) => void;
   folders: string[];
   onUpdateFolder?: (noteId: string, newFolder: string) => Promise<void>;
+  onOpenFolderManager?: () => void;
 }
 
 export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
@@ -37,7 +39,8 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   onMergeNotes,
   onOpenDetailNote,
   folders,
-  onUpdateFolder
+  onUpdateFolder,
+  onOpenFolderManager
 }) => {
   const [search, setSearch] = useState('');
   const [activeFolderTab, setActiveFolderTab] = useState('Semua');
@@ -145,6 +148,17 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                   {tab}
                 </button>
               ))}
+
+              {onOpenFolderManager && (
+                <button
+                  onClick={onOpenFolderManager}
+                  className="px-2.5 py-1 rounded-full font-semibold whitespace-nowrap transition-all text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1 shrink-0"
+                  title="Kelola & Tambah Folder"
+                >
+                  <FolderOpen className="w-3 h-3" />
+                  <span>+ Kelola</span>
+                </button>
+              )}
             </div>
 
             {/* Multi-Merge Action Banner */}

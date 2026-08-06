@@ -1,18 +1,20 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Send, Sparkles, X, Square, Folder } from 'lucide-react';
+import { Mic, MicOff, Send, Sparkles, X, Square, Folder, Plus } from 'lucide-react';
 
 interface VoiceInputBarProps {
   onSendNote: (content: string, rawTranscript?: string, autoGenerateReport?: boolean, folder?: string) => Promise<void>;
   isSubmitting?: boolean;
   folders: string[];
+  onOpenFolderManager?: () => void;
 }
 
 export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
   onSendNote,
   isSubmitting = false,
-  folders
+  folders,
+  onOpenFolderManager
 }) => {
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -257,6 +259,18 @@ export const VoiceInputBar: React.FC<VoiceInputBarProps> = ({
               {f}
             </button>
           ))}
+
+          {onOpenFolderManager && (
+            <button
+              type="button"
+              onClick={onOpenFolderManager}
+              className="px-2.5 py-1 rounded-full font-semibold whitespace-nowrap transition-all text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1 shrink-0"
+              title="Kelola & Tambah Folder Baru"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Folder</span>
+            </button>
+          )}
 
           {/* AI Auto-Report Toggle Badge */}
           <button
