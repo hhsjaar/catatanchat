@@ -13,9 +13,9 @@ function formatInlineMarkdown(text: string): string {
   // Code inline
   formatted = formatted.replace(/`([^`]+)`/g, '<code style="background-color: #f1f5f9; padding: 2px 5px; font-family: Consolas, monospace; border-radius: 3px; font-size: 0.9em; color: #4338ca;">$1</code>');
   
-  // Bold with ** or __
-  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<b><strong style="font-weight: bold; color: #0f172a;">$1</strong></b>');
-  formatted = formatted.replace(/__(.*?)__/g, '<b><strong style="font-weight: bold; color: #0f172a;">$1</strong></b>');
+  // Bold with ** or __ (inherit parent text color so white on dark containers works seamlessly)
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<b><strong style="font-weight: bold;">$1</strong></b>');
+  formatted = formatted.replace(/__(.*?)__/g, '<b><strong style="font-weight: bold;">$1</strong></b>');
   
   // Italic with * or _
   formatted = formatted.replace(/\*(.*?)\*/g, '<i><em style="font-style: italic;">$1</em></i>');
@@ -67,7 +67,7 @@ export function parseMarkdownToHtml(markdown: string): string {
   const flushTable = () => {
     if (tableHeaders.length > 0 || tableRows.length > 0) {
       const headerHtml = tableHeaders.length > 0
-        ? `<thead><tr>${tableHeaders.map(h => `<th style="background-color: #1e293b; color: #ffffff; font-weight: bold; border: 1pt solid #cbd5e1; padding: 7pt 10pt; text-align: left; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(h)}</th>`).join('')}</tr></thead>`
+        ? `<thead><tr>${tableHeaders.map(h => `<th style="background-color: #1e293b; color: #ffffff !important; font-weight: bold; border: 1pt solid #cbd5e1; padding: 7pt 10pt; text-align: left; font-family: 'Calibri', 'Arial', sans-serif;"><span style="color: #ffffff !important;">${formatInlineMarkdown(h)}</span></th>`).join('')}</tr></thead>`
         : '';
       const rowsHtml = tableRows.map((row, idx) => {
         const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
@@ -470,11 +470,14 @@ export function exportToWord(note: Note) {
         }
         th {
           background-color: #1e293b;
-          color: #ffffff;
+          color: #ffffff !important;
           font-weight: bold;
           border: 1pt solid #cbd5e1;
           padding: 6.0pt 10.0pt;
           text-align: left;
+        }
+        th strong, th b, th span, th p {
+          color: #ffffff !important;
         }
         td {
           border: 1pt solid #cbd5e1;

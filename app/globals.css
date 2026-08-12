@@ -105,9 +105,13 @@ body {
 }
 
 .prose-report th {
-  background-color: #4f46e5;
+  background-color: #1e293b;
   font-weight: 600;
-  color: #ffffff;
+  color: #ffffff !important;
+}
+
+.prose-report th * {
+  color: #ffffff !important;
 }
 
 .prose-report tr:nth-child(even) td {
