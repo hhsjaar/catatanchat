@@ -5,18 +5,31 @@ export interface ExcelTable {
   rows: string[][];
 }
 
-// Helper function to format inline markdown elements (bold, italic, code) with MS Word compatibility
+// Helper function to format inline markdown elements (bold, italic, code, key-values) with MS Word compatibility
 function formatInlineMarkdown(text: string): string {
   if (!text) return '';
-  return text
-    // Code inline
-    .replace(/`([^`]+)`/g, '<code style="background-color: #f1f5f9; padding: 2px 5px; font-family: Consolas, monospace; border-radius: 4px; font-size: 0.9em; color: #4338ca;">$1</code>')
-    // Bold with ** or __
-    .replace(/\*\*(.*?)\*\*/g, '<b><strong style="font-weight: bold; mso-bidi-font-weight: bold; color: #0f172a;">$1</strong></b>')
-    .replace(/__(.*?)__/g, '<b><strong style="font-weight: bold; mso-bidi-font-weight: bold; color: #0f172a;">$1</strong></b>')
-    // Italic with * or _
-    .replace(/\*(.*?)\*/g, '<i><em style="font-style: italic;">$1</em></i>')
-    .replace(/_(.*?)_/g, '<i><em style="font-style: italic;">$1</em></i>');
+  let formatted = text;
+
+  // Code inline
+  formatted = formatted.replace(/`([^`]+)`/g, '<code style="background-color: #f1f5f9; padding: 2px 5px; font-family: Consolas, monospace; border-radius: 3px; font-size: 0.9em; color: #4338ca;">$1</code>');
+  
+  // Bold with ** or __
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<b><strong style="font-weight: bold; color: #0f172a;">$1</strong></b>');
+  formatted = formatted.replace(/__(.*?)__/g, '<b><strong style="font-weight: bold; color: #0f172a;">$1</strong></b>');
+  
+  // Italic with * or _
+  formatted = formatted.replace(/\*(.*?)\*/g, '<i><em style="font-style: italic;">$1</em></i>');
+  formatted = formatted.replace(/_(.*?)_/g, '<i><em style="font-style: italic;">$1</em></i>');
+
+  // Auto-bold key label before colon if line starts with key: value pattern (e.g. Hari/Tanggal: Minggu)
+  formatted = formatted.replace(/^([A-Za-z0-9\s\/&().-]+):\s+([^\s<].*)$/, (match, p1, p2) => {
+    if (p1.includes('http') || p1.includes('https') || p1.startsWith('<b>') || p1.startsWith('<strong')) {
+      return match;
+    }
+    return `<b>${p1}:</b> ${p2}`;
+  });
+
+  return formatted;
 }
 
 // Comprehensive markdown-to-HTML parser for Word & rich exports
@@ -54,13 +67,13 @@ export function parseMarkdownToHtml(markdown: string): string {
   const flushTable = () => {
     if (tableHeaders.length > 0 || tableRows.length > 0) {
       const headerHtml = tableHeaders.length > 0
-        ? `<thead><tr>${tableHeaders.map(h => `<th style="background-color: #4f46e5; background: #4f46e5; color: #ffffff; font-weight: bold; border: 1pt solid #cbd5e1; padding: 8pt 10pt; text-align: left;">${formatInlineMarkdown(h)}</th>`).join('')}</tr></thead>`
+        ? `<thead><tr>${tableHeaders.map(h => `<th style="background-color: #1e293b; color: #ffffff; font-weight: bold; border: 1pt solid #cbd5e1; padding: 7pt 10pt; text-align: left; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(h)}</th>`).join('')}</tr></thead>`
         : '';
       const rowsHtml = tableRows.map((row, idx) => {
         const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-        return `<tr>${row.map(cell => `<td style="border: 1pt solid #cbd5e1; padding: 7pt 10pt; text-align: left; vertical-align: top; background-color: ${bg};">${formatInlineMarkdown(cell)}</td>`).join('')}</tr>`;
+        return `<tr>${row.map(cell => `<td style="border: 1pt solid #cbd5e1; padding: 6pt 10pt; text-align: left; vertical-align: top; background-color: ${bg}; color: #1e293b; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(cell)}</td>`).join('')}</tr>`;
       }).join('');
-      outputHtml += `<table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; width: 100%; margin-top: 12pt; margin-bottom: 12pt; border: 1pt solid #cbd5e1; font-size: 10pt;">${headerHtml}<tbody>${rowsHtml}</tbody></table>\n`;
+      outputHtml += `<table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%; margin-top: 10pt; margin-bottom: 10pt; border: 1pt solid #cbd5e1; font-size: 10pt; font-family: 'Calibri', 'Arial', sans-serif;">${headerHtml}<tbody>${rowsHtml}</tbody></table>\n`;
       tableHeaders = [];
       tableRows = [];
     }
@@ -92,60 +105,94 @@ export function parseMarkdownToHtml(markdown: string): string {
       flushTable();
     }
 
-    // 2. List Item Detection (Ordered or Unordered)
+    // 2. Horizontal Divider Detection (lines with --- or === or ___)
+    const isDivider = /^[-=_]{3,}$/.test(trimmed) || /^[-=_\s]{5,}$/.test(trimmed);
+    if (isDivider) {
+      closeAllLists();
+      outputHtml += `<hr style="border: none; border-top: 1pt solid #cbd5e1; margin: 10pt 0 10pt 0;" />\n`;
+      continue;
+    }
+
+    // 3. List Item Detection (Ordered or Unordered)
     const indentMatch = line.match(/^(\s*)/);
     const indentLength = indentMatch ? indentMatch[1].length : 0;
-    const isBullet = /^[-*]\s+/.test(trimmed);
-    const isNumber = /^\d+\.\s+/.test(trimmed);
+    
+    // Bullet check (- *, •, +)
+    const isBullet = /^[-*•+]\s+/.test(trimmed);
+    
+    // Numbered section heading vs numbered list item check
+    const isNumberMatch = trimmed.match(/^(\d+|[A-Z]|[I|V|X]+)\.\s+(.*)$/);
+    let isNumberedHeading = false;
+    let isNumberList = false;
 
-    if (isBullet || isNumber) {
+    if (isNumberMatch) {
+      const restText = isNumberMatch[2].trim();
+      
+      // If line looks like a major numbered title section (e.g. 1. Informasi Umum Kegiatan)
+      const isHeadingKeyword = /^(Informasi|Ringkasan|Pendahuluan|Latar|Tujuan|Hasil|Pelaksanaan|Rekomendasi|Kesimpulan|Analisis|Penutup|Catatan|Agenda|Susunan|Data|Peserta|Lokasi|Waktu)/i.test(restText);
+      const isShortHeading = restText.length < 80 && !restText.endsWith('.') && /^[A-Z0-9]/.test(restText);
+
+      if (isHeadingKeyword || isShortHeading) {
+        isNumberedHeading = true;
+      } else {
+        isNumberList = true;
+      }
+    }
+
+    if (isNumberedHeading) {
+      closeAllLists();
+      outputHtml += `<h2 style="font-size: 13pt; font-weight: bold; color: #0f172a; margin-top: 14pt; margin-bottom: 5pt; border-bottom: 1pt solid #cbd5e1; padding-bottom: 3pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed)}</h2>\n`;
+      continue;
+    }
+
+    if (isBullet || isNumberList) {
       const targetType: ListType = isBullet ? 'ul' : 'ol';
-      const itemContent = isBullet ? trimmed.replace(/^[-*]\s+/, '') : trimmed.replace(/^\d+\.\s+/, '');
+      const itemContent = isBullet 
+        ? trimmed.replace(/^[-*•+]\s+/, '') 
+        : trimmed.replace(/^(\d+|[A-Z]|[I|V|X]+)\.\s+/, '');
+
+      const listStyle = targetType === 'ol'
+        ? 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 0cm; padding-left: 18pt; list-style-type: decimal; color: #0f172a;'
+        : 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 0cm; padding-left: 18pt; list-style-type: disc; color: #1e293b;';
 
       if (listStack.length === 0) {
-        const listStyle = targetType === 'ol'
-          ? 'margin-top: 4pt; margin-bottom: 6pt; margin-left: 24pt; padding-left: 0cm; list-style-type: decimal; color: #0f172a; mso-para-margin-left: 2.0gd;'
-          : 'margin-top: 4pt; margin-bottom: 6pt; margin-left: 24pt; padding-left: 0cm; list-style-type: disc; color: #1e293b; mso-para-margin-left: 2.0gd;';
         outputHtml += `<${targetType} style="${listStyle}">\n`;
         listStack.push({ type: targetType, indent: indentLength });
       } else {
         const topState = listStack[listStack.length - 1];
-        if (topState.type === targetType && indentLength <= topState.indent) {
+        if (topState.type === targetType && Math.abs(indentLength - topState.indent) <= 1) {
           // Same level list item
           if (openLi) {
             outputHtml += '</li>\n';
             openLi = false;
           }
-        } else if (targetType === 'ul' && topState.type === 'ol') {
-          // Sub-bullet point under an ordered item!
-          const nestedStyle = 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 48pt; padding-left: 0cm; list-style-type: disc; color: #1e293b; mso-para-margin-left: 4.0gd;';
-          outputHtml += `\n<ul style="${nestedStyle}">\n`;
-          listStack.push({ type: 'ul', indent: indentLength });
-        } else if (targetType === 'ol' && topState.type === 'ul') {
-          // Pop nested ul and continue parent ol
-          if (openLi) {
-            outputHtml += '</li>\n';
-            openLi = false;
-          }
-          const popped = listStack.pop();
-          if (popped) {
-            outputHtml += `</${popped.type}>\n`;
-          }
-          if (openLi) {
-            outputHtml += '</li>\n';
-            openLi = false;
-          }
         } else if (indentLength > topState.indent) {
-          // Indented sub-level
+          // Sub-level list item
           const nestedStyle = targetType === 'ol'
-            ? 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 48pt; padding-left: 0cm; list-style-type: decimal; color: #0f172a; mso-para-margin-left: 4.0gd;'
-            : 'margin-top: 3pt; margin-bottom: 4pt; margin-left: 48pt; padding-left: 0cm; list-style-type: disc; color: #1e293b; mso-para-margin-left: 4.0gd;';
+            ? 'margin-top: 2pt; margin-bottom: 3pt; margin-left: 0cm; padding-left: 18pt; list-style-type: decimal; color: #0f172a;'
+            : 'margin-top: 2pt; margin-bottom: 3pt; margin-left: 0cm; padding-left: 18pt; list-style-type: circle; color: #1e293b;';
           outputHtml += `\n<${targetType} style="${nestedStyle}">\n`;
           listStack.push({ type: targetType, indent: indentLength });
+        } else {
+          // Unindent back to appropriate parent list
+          while (listStack.length > 1 && listStack[listStack.length - 1].indent > indentLength) {
+            if (openLi) {
+              outputHtml += '</li>\n';
+              openLi = false;
+            }
+            const popped = listStack.pop();
+            if (popped) {
+              outputHtml += `</${popped.type}>\n`;
+            }
+          }
+          if (openLi) {
+            outputHtml += '</li>\n';
+            openLi = false;
+          }
         }
       }
 
-      outputHtml += `<li style="margin-top: 0cm; margin-bottom: 4pt; line-height: 1.5; mso-line-height-rule: exactly; font-size: 11pt;">${formatInlineMarkdown(itemContent)}`;
+      outputHtml += `<li style="margin-top: 2pt; margin-bottom: 3pt; line-height: 1.45; font-size: 11pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(itemContent)}`;
       openLi = true;
       continue;
     }
@@ -153,21 +200,27 @@ export function parseMarkdownToHtml(markdown: string): string {
     // Not a list item
     closeAllLists();
 
-    // 3. Headings & Blockquotes
+    // 4. Headings & Special Text Blocks
     if (trimmed.startsWith('#### ')) {
-      outputHtml += `<h4 style="mso-style-name:'Heading 4'; color: #475569; font-size: 11pt; font-weight: bold; margin-top: 10pt; margin-bottom: 3pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(5))}</h4>\n`;
+      outputHtml += `<h4 style="color: #334155; font-size: 11pt; font-weight: bold; margin-top: 10pt; margin-bottom: 3pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(5))}</h4>\n`;
     } else if (trimmed.startsWith('### ')) {
-      outputHtml += `<h3 style="mso-style-name:'Heading 3'; color: #334155; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(4))}</h3>\n`;
+      outputHtml += `<h3 style="color: #1e293b; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(4))}</h3>\n`;
     } else if (trimmed.startsWith('## ')) {
-      outputHtml += `<h2 style="mso-style-name:'Heading 2'; color: #1e293b; font-size: 14pt; font-weight: bold; margin-top: 14pt; margin-bottom: 5pt; border-bottom: 1pt solid #cbd5e1; padding-bottom: 3pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(3))}</h2>\n`;
+      outputHtml += `<h2 style="color: #0f172a; font-size: 13.5pt; font-weight: bold; margin-top: 14pt; margin-bottom: 5pt; border-bottom: 1pt solid #e2e8f0; padding-bottom: 3pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(3))}</h2>\n`;
     } else if (trimmed.startsWith('# ')) {
-      outputHtml += `<h1 style="mso-style-name:'Heading 1'; color: #1e1b4b; font-size: 18pt; font-weight: bold; margin-top: 16pt; margin-bottom: 6pt; border-bottom: 2pt solid #4f46e5; padding-bottom: 4pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(2))}</h1>\n`;
+      outputHtml += `<h1 style="color: #0f172a; font-size: 16pt; font-weight: bold; margin-top: 14pt; margin-bottom: 6pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(2))}</h1>\n`;
     } else if (trimmed.startsWith('> ')) {
-      outputHtml += `<blockquote style="border-left: 4pt solid #6366f1; background-color: #f8fafc; padding: 6pt 10pt; margin: 8pt 0; color: #334155; font-style: italic; border-radius: 4px;">${formatInlineMarkdown(trimmed.substring(2))}</blockquote>\n`;
+      outputHtml += `<blockquote style="border-left: 3pt solid #3b82f6; background-color: #f8fafc; padding: 6pt 10pt; margin: 8pt 0; color: #334155; font-style: italic; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed.substring(2))}</blockquote>\n`;
     } else if (trimmed === '') {
-      outputHtml += `<div style="height: 6pt;"></div>\n`;
+      outputHtml += `<div style="height: 4pt;"></div>\n`;
+    } else if (/^(Laporan Eksekutif|Laporan Terstruktur|Laporan Utama|Judul Laporan):/i.test(trimmed)) {
+      // Main document title line
+      outputHtml += `<h1 style="color: #0f172a; font-size: 15pt; font-weight: bold; margin-top: 10pt; margin-bottom: 6pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed)}</h1>\n`;
+    } else if (/^(Kepada Yth|Dari|Tanggal|Perihal):/i.test(trimmed)) {
+      // Formal document metadata line (e.g. Kepada Yth.: KAPOLRESTABES SEMARANG Dari: KAPOLSEK TEMBALANG)
+      outputHtml += `<p style="font-size: 11pt; font-weight: bold; color: #1e293b; margin-top: 4pt; margin-bottom: 6pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed)}</p>\n`;
     } else {
-      outputHtml += `<p style="margin-top: 0cm; margin-bottom: 6pt; line-height: 1.5; mso-line-height-rule: exactly; color: #1e293b; font-size: 11pt;">${formatInlineMarkdown(trimmed)}</p>\n`;
+      outputHtml += `<p style="margin-top: 0cm; margin-bottom: 6pt; line-height: 1.5; color: #1e293b; font-size: 11pt; font-family: 'Calibri', 'Arial', sans-serif;">${formatInlineMarkdown(trimmed)}</p>\n`;
     }
   }
 
@@ -305,7 +358,7 @@ export function generateExcelHtml(tables: ExcelTable[]): string {
   return html;
 }
 
-// Download functions
+// Download functions - Export clean, formal LAPORAN TERSTRUKTUR to Word
 export function exportToWord(note: Note) {
   const formattedDate = new Date(note.createdAt).toLocaleDateString('id-ID', {
     weekday: 'long',
@@ -316,14 +369,15 @@ export function exportToWord(note: Note) {
     minute: '2-digit'
   });
 
-  const parsedContent = parseMarkdownToHtml(note.content);
-  const parsedReport = note.formattedReport ? parseMarkdownToHtml(note.formattedReport) : '';
+  const hasReport = Boolean(note.formattedReport && note.formattedReport.trim().length > 0);
+  const mainMarkdown = hasReport ? note.formattedReport! : note.content;
+  const parsedMainContent = parseMarkdownToHtml(mainMarkdown);
 
   const htmlContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
       <meta charset="utf-8">
-      <title>${note.folder || 'Catatan'}</title>
+      <title>${note.folder || 'Laporan Terstruktur'}</title>
       <!--[if gte mso 9]>
       <xml>
         <w:WordDocument>
@@ -334,58 +388,151 @@ export function exportToWord(note: Note) {
       </xml>
       <![endif]-->
       <style>
-        @page { size: A4; margin: 1.0in 1.0in 1.0in 1.0in; mso-header-margin: 0.5in; mso-footer-margin: 0.5in; }
-        body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11.0pt; line-height: 1.5; mso-line-height-rule: exactly; color: #0f172a; margin: 0; padding: 0; }
-        p.MsoNormal, li.MsoNormal, div.MsoNormal { margin-top: 0cm; margin-bottom: 6.0pt; line-height: 1.5; mso-line-height-rule: exactly; font-family: 'Calibri', 'Arial', sans-serif; font-size: 11.0pt; color: #0f172a; }
-        h1 { mso-style-name: "Heading 1"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 18.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e1b4b; margin-top: 16.0pt; margin-bottom: 6.0pt; border-bottom: 2pt solid #4f46e5; padding-bottom: 4.0pt; }
-        h2 { mso-style-name: "Heading 2"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 14.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e293b; margin-top: 14.0pt; margin-bottom: 5.0pt; border-bottom: 1pt solid #cbd5e1; padding-bottom: 3.0pt; }
-        h3 { mso-style-name: "Heading 3"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 12.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #334155; margin-top: 12.0pt; margin-bottom: 4.0pt; }
-        h4 { mso-style-name: "Heading 4"; font-family: 'Calibri', 'Arial', sans-serif; font-size: 11.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #475569; margin-top: 10.0pt; margin-bottom: 3.0pt; }
-        ul { margin-top: 4.0pt; margin-bottom: 8.0pt; margin-left: 24.0pt; padding-left: 0cm; list-style-type: disc; mso-para-margin-left: 2.0gd; }
-        ol { margin-top: 4.0pt; margin-bottom: 8.0pt; margin-left: 24.0pt; padding-left: 0cm; list-style-type: decimal; mso-para-margin-left: 2.0gd; }
-        ul ul, ol ul { margin-top: 3.0pt; margin-bottom: 4.0pt; margin-left: 48.0pt; padding-left: 0cm; list-style-type: disc; mso-para-margin-left: 4.0gd; }
-        li { margin-top: 0cm; margin-bottom: 4.0pt; line-height: 1.5; mso-line-height-rule: exactly; font-size: 11.0pt; }
-        strong, b { font-weight: bold; mso-bidi-font-weight: bold; color: #0f172a; }
-        table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; width: 100%; margin-top: 12.0pt; margin-bottom: 12.0pt; font-size: 10.0pt; }
-        th { background-color: #4f46e5; background: #4f46e5; color: #ffffff; font-weight: bold; mso-bidi-font-weight: bold; border: 1pt solid #cbd5e1; padding: 7.0pt 10.0pt; text-align: left; }
-        td { border: 1pt solid #cbd5e1; padding: 7.0pt 10.0pt; text-align: left; vertical-align: top; }
-        tr:nth-child(even) td { background-color: #f8fafc; }
-        blockquote { border-left: 4.0pt solid #6366f1; background-color: #f8fafc; padding: 6.0pt 10.0pt; margin: 8.0pt 0; color: #334155; font-style: italic; }
-        p { margin-top: 0cm; margin-bottom: 6.0pt; line-height: 1.5; mso-line-height-rule: exactly; }
-        .header-card { background-color: #f8fafc; border: 1pt solid #e2e8f0; border-left: 6.0pt solid #4f46e5; padding: 14.0pt 18.0pt; margin-bottom: 18.0pt; }
-        .doc-title { font-size: 18.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e1b4b; margin: 0 0 6.0pt 0; }
-        .meta-row { font-size: 9.5pt; color: #64748b; margin-top: 4.0pt; }
-        .badge-folder { background-color: #e0e7ff; color: #3730a3; padding: 3.0pt 10.0pt; font-weight: bold; mso-bidi-font-weight: bold; font-size: 9.0pt; }
-        .section-title { font-size: 13.0pt; font-weight: bold; mso-bidi-font-weight: bold; color: #1e293b; margin-top: 18.0pt; margin-bottom: 8.0pt; border-bottom: 2.0pt solid #6366f1; padding-bottom: 4.0pt; text-transform: uppercase; letter-spacing: 0.5pt; }
-        .section-box { background-color: #ffffff; border: 1pt solid #e2e8f0; padding: 14.0pt 18.0pt; margin-bottom: 16.0pt; }
-        .report-box { background-color: #f0fdf4; border: 1pt solid #bbf7d0; border-left: 5.0pt solid #10b981; padding: 14.0pt 18.0pt; margin-bottom: 16.0pt; }
-        .footer-note { border-top: 1pt solid #e2e8f0; padding-top: 10.0pt; font-size: 8.5pt; color: #94a3b8; text-align: center; margin-top: 24.0pt; }
+        @page Section1 {
+          size: 595.3pt 841.9pt;
+          margin: 1.0in 1.0in 1.0in 1.0in;
+          mso-header-margin: 0.5in;
+          mso-footer-margin: 0.5in;
+        }
+        div.Section1 { page: Section1; }
+        
+        body, p, td, th, li, h1, h2, h3, h4, div, span {
+          font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
+        }
+        body {
+          font-size: 11.0pt;
+          line-height: 1.5;
+          color: #0f172a;
+          margin: 0;
+          padding: 0;
+        }
+        p.MsoNormal, li.MsoNormal, div.MsoNormal {
+          margin-top: 0cm;
+          margin-bottom: 6.0pt;
+          line-height: 1.5;
+          font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
+          font-size: 11.0pt;
+          color: #0f172a;
+        }
+        h1 {
+          font-size: 16.0pt;
+          font-weight: bold;
+          color: #0f172a;
+          margin-top: 14.0pt;
+          margin-bottom: 6.0pt;
+        }
+        h2 {
+          font-size: 13.0pt;
+          font-weight: bold;
+          color: #0f172a;
+          margin-top: 12.0pt;
+          margin-bottom: 5.0pt;
+          border-bottom: 1pt solid #cbd5e1;
+          padding-bottom: 3.0pt;
+        }
+        h3 {
+          font-size: 12.0pt;
+          font-weight: bold;
+          color: #1e293b;
+          margin-top: 10.0pt;
+          margin-bottom: 4.0pt;
+        }
+        h4 {
+          font-size: 11.0pt;
+          font-weight: bold;
+          color: #334155;
+          margin-top: 8.0pt;
+          margin-bottom: 3.0pt;
+        }
+        ul, ol {
+          margin-top: 3.0pt;
+          margin-bottom: 6.0pt;
+          margin-left: 0cm;
+          padding-left: 18.0pt;
+        }
+        li {
+          margin-top: 2.0pt;
+          margin-bottom: 3.0pt;
+          line-height: 1.45;
+          font-size: 11.0pt;
+          color: #1e293b;
+        }
+        strong, b {
+          font-weight: bold;
+          color: #0f172a;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+          margin-top: 10.0pt;
+          margin-bottom: 10.0pt;
+          font-size: 10.0pt;
+        }
+        th {
+          background-color: #1e293b;
+          color: #ffffff;
+          font-weight: bold;
+          border: 1pt solid #cbd5e1;
+          padding: 6.0pt 10.0pt;
+          text-align: left;
+        }
+        td {
+          border: 1pt solid #cbd5e1;
+          padding: 6.0pt 10.0pt;
+          text-align: left;
+          vertical-align: top;
+        }
+        hr {
+          border: none;
+          border-top: 1pt solid #cbd5e1;
+          margin: 10.0pt 0 10.0pt 0;
+        }
+        blockquote {
+          border-left: 3.0pt solid #3b82f6;
+          background-color: #f8fafc;
+          padding: 6.0pt 10.0pt;
+          margin: 8.0pt 0;
+          color: #334155;
+          font-style: italic;
+        }
       </style>
     </head>
     <body>
-      <div class="header-card">
-        <div class="doc-title">Laporan Catatan: ${note.folder || 'Umum'}</div>
-        <div class="meta-row">
-          <span class="badge-folder">Folder: ${note.folder || 'Umum'}</span> &bull; 
-          <span>Dibuat pada: ${formattedDate}</span>
-          ${note.rawAudioTranscript ? ' &bull; <span>[Sumber: Rekaman Suara]</span>' : ''}
+      <div class="Section1">
+        <!-- Formal Document Header Bar -->
+        <table border="0" cellspacing="0" cellpadding="0" style="width: 100%; border-collapse: collapse; margin-bottom: 14pt; border-bottom: 2pt solid #0f172a; padding-bottom: 6pt;">
+          <tr>
+            <td style="border: none; padding: 0 0 6pt 0; vertical-align: bottom;">
+              <span style="font-size: 9.5pt; font-weight: bold; color: #475569; text-transform: uppercase; letter-spacing: 0.5pt;">
+                FOLDER: ${note.folder || note.category || 'PEKERJAAN'} &bull; ${formattedDate}
+              </span>
+            </td>
+            <td align="right" style="border: none; padding: 0 0 6pt 0; text-align: right; vertical-align: bottom;">
+              <span style="font-size: 9.5pt; font-weight: bold; color: #059669; background-color: #ecfdf5; border: 1pt solid #a7f3d0; padding: 3pt 8pt; border-radius: 4pt;">
+                LAPORAN TERSTRUKTUR
+              </span>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Main Content -->
+        <div style="font-size: 11pt; line-height: 1.5; color: #0f172a;">
+          ${parsedMainContent}
         </div>
-      </div>
 
-      <div class="section-title">Isi Catatan Utama</div>
-      <div class="section-box">
-        ${parsedContent}
-      </div>
+        ${hasReport && note.content ? `
+          <div style="margin-top: 30pt; padding-top: 12pt; border-top: 1pt dashed #cbd5e1;">
+            <div style="font-size: 10pt; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 6pt;">Lampiran: Catatan Mentah (Teks Asli)</div>
+            <div style="font-size: 10pt; color: #475569; background-color: #f8fafc; border: 1pt solid #e2e8f0; padding: 10pt; white-space: pre-wrap; font-family: 'Calibri', sans-serif;">
+              ${note.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+            </div>
+          </div>
+        ` : ''}
 
-      ${note.formattedReport ? `
-        <div class="section-title" style="color: #047857; border-bottom-color: #10b981;">Laporan Terstruktur (Hasil AI)</div>
-        <div class="report-box">
-          ${parsedReport}
+        <!-- Footer -->
+        <div style="border-top: 1pt solid #e2e8f0; padding-top: 8pt; font-size: 8.5pt; color: #94a3b8; text-align: center; margin-top: 24pt;">
+          Dokumen Laporan Terstruktur &bull; Diekspor otomatis pada ${new Date().toLocaleDateString('id-ID')}
         </div>
-      ` : ''}
-
-      <div class="footer-note">
-        Dokumen Laporan Catatan Suara &bull; Diekspor otomatis pada ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
       </div>
     </body>
     </html>
@@ -395,7 +542,7 @@ export function exportToWord(note: Note) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const sanitizedTitle = (note.folder || 'catatan').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const sanitizedTitle = (note.folder || 'laporan_terstruktur').toLowerCase().replace(/[^a-z0-9]/g, '_');
   a.download = `${sanitizedTitle}_note_${note.id}.doc`;
   document.body.appendChild(a);
   a.click();
