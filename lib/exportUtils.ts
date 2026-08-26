@@ -234,9 +234,10 @@ export function parseMarkdownToHtml(markdown: string): string {
 export function extractTablesOrFallback(note: Note): ExcelTable[] {
   const tables: ExcelTable[] = [];
   
-  // Find markdown tables in note content and report
-  const fullText = `${note.content}\n\n${note.formattedReport || ''}`;
-  const lines = fullText.split('\n');
+  // Use structured report if available, otherwise note content (e.g. paraphrase or note)
+  const hasReport = Boolean(note.formattedReport && note.formattedReport.trim().length > 0);
+  const targetText = hasReport ? note.formattedReport! : note.content;
+  const lines = targetText.split('\n');
   
   let inTable = false;
   let headers: string[] = [];
@@ -276,15 +277,15 @@ export function extractTablesOrFallback(note: Note): ExcelTable[] {
   
   // Fallback if no tables found
   if (tables.length === 0) {
+    const isParaphrased = !hasReport && note.content.includes('Hasil Parafrase');
+    const contentLabel = hasReport ? 'Laporan Terstruktur' : (isParaphrased ? 'Hasil Parafrase' : 'Isi Catatan');
+    
     tables.push({
-      headers: ['Atribut Catatan', 'Nilai / Isi'],
+      headers: ['Atribut Dokumen', 'Keterangan / Isi'],
       rows: [
-        ['ID Catatan', note.id],
-        ['Folder', note.folder || 'Umum'],
+        ['Folder / Kategori', note.folder || note.category || 'Umum'],
         ['Tanggal Dibuat', new Date(note.createdAt).toLocaleString('id-ID')],
-        ['Sumber Suara', note.rawAudioTranscript ? 'Ya' : 'Tidak'],
-        ['Isi Catatan Utama', note.content],
-        ['Laporan Terstruktur', note.formattedReport || '-']
+        [contentLabel, targetText]
       ]
     });
   }
@@ -358,7 +359,7 @@ export function generateExcelHtml(tables: ExcelTable[]): string {
   return html;
 }
 
-// Download functions - Export clean, formal LAPORAN TERSTRUKTUR to Word
+// Download functions - Export clean, formal structured report / paraphrase to Word
 export function exportToWord(note: Note) {
   const formattedDate = new Date(note.createdAt).toLocaleDateString('id-ID', {
     weekday: 'long',
@@ -370,14 +371,17 @@ export function exportToWord(note: Note) {
   });
 
   const hasReport = Boolean(note.formattedReport && note.formattedReport.trim().length > 0);
+  const isParaphrased = !hasReport && note.content.includes('Hasil Parafrase');
   const mainMarkdown = hasReport ? note.formattedReport! : note.content;
   const parsedMainContent = parseMarkdownToHtml(mainMarkdown);
+  const badgeLabel = hasReport ? 'LAPORAN TERSTRUKTUR' : (isParaphrased ? 'HASIL PARAFRASE' : 'CATATAN');
+  const docTitle = hasReport ? 'Laporan Terstruktur' : (isParaphrased ? 'Hasil Parafrase' : (note.folder || 'Catatan'));
 
   const htmlContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
       <meta charset="utf-8">
-      <title>${note.folder || 'Laporan Terstruktur'}</title>
+      <title>${docTitle}</title>
       <!--[if gte mso 9]>
       <xml>
         <w:WordDocument>
@@ -512,7 +516,7 @@ export function exportToWord(note: Note) {
             </td>
             <td align="right" style="border: none; padding: 0 0 6pt 0; text-align: right; vertical-align: bottom;">
               <span style="font-size: 9.5pt; font-weight: bold; color: #059669; background-color: #ecfdf5; border: 1pt solid #a7f3d0; padding: 3pt 8pt; border-radius: 4pt;">
-                LAPORAN TERSTRUKTUR
+                ${badgeLabel}
               </span>
             </td>
           </tr>
@@ -523,18 +527,9 @@ export function exportToWord(note: Note) {
           ${parsedMainContent}
         </div>
 
-        ${hasReport && note.content ? `
-          <div style="margin-top: 30pt; padding-top: 12pt; border-top: 1pt dashed #cbd5e1;">
-            <div style="font-size: 10pt; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 6pt;">Lampiran: Catatan Mentah (Teks Asli)</div>
-            <div style="font-size: 10pt; color: #475569; background-color: #f8fafc; border: 1pt solid #e2e8f0; padding: 10pt; white-space: pre-wrap; font-family: 'Calibri', sans-serif;">
-              ${note.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-            </div>
-          </div>
-        ` : ''}
-
         <!-- Footer -->
         <div style="border-top: 1pt solid #e2e8f0; padding-top: 8pt; font-size: 8.5pt; color: #94a3b8; text-align: center; margin-top: 24pt;">
-          Dokumen Laporan Terstruktur &bull; Diekspor otomatis pada ${new Date().toLocaleDateString('id-ID')}
+          Dokumen ${badgeLabel} &bull; Diekspor otomatis pada ${new Date().toLocaleDateString('id-ID')}
         </div>
       </div>
     </body>
@@ -545,12 +540,160 @@ export function exportToWord(note: Note) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const sanitizedTitle = (note.folder || 'laporan_terstruktur').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const sanitizedTitle = (note.folder || 'laporan').toLowerCase().replace(/[^a-z0-9]/g, '_');
   a.download = `${sanitizedTitle}_note_${note.id}.doc`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// Download functions - Export clean, formal structured report / paraphrase to PDF
+export function exportToPDF(note: Note) {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+
+  const formattedDate = new Date(note.createdAt).toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const hasReport = Boolean(note.formattedReport && note.formattedReport.trim().length > 0);
+  const isParaphrased = !hasReport && note.content.includes('Hasil Parafrase');
+  const mainMarkdown = hasReport ? note.formattedReport! : note.content;
+  const parsedMainContent = parseMarkdownToHtml(mainMarkdown);
+  const badgeLabel = hasReport ? 'LAPORAN TERSTRUKTUR' : (isParaphrased ? 'HASIL PARAFRASE' : 'CATATAN');
+  const docTitle = hasReport ? 'Laporan Terstruktur' : (isParaphrased ? 'Hasil Parafrase' : (note.folder || 'Catatan'));
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${docTitle} - PDF Export</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 20mm 20mm 20mm 20mm;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 30px 40px;
+            color: #0f172a;
+            line-height: 1.6;
+            font-size: 11pt;
+            background: #ffffff;
+          }
+          .header {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+          }
+          .meta-left {
+            font-size: 10pt;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .badge {
+            background: #ecfdf5;
+            color: #059669;
+            border: 1px solid #a7f3d0;
+            font-size: 9.5pt;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+            text-transform: uppercase;
+          }
+          .content-body {
+            font-size: 11pt;
+            color: #0f172a;
+            line-height: 1.6;
+          }
+          h1, h2, h3, h4 {
+            color: #0f172a;
+            font-family: inherit;
+          }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 14px 0;
+            font-size: 10pt;
+          }
+          th, td {
+            border: 1px solid #cbd5e1;
+            padding: 7px 10px;
+            text-align: left;
+            vertical-align: top;
+          }
+          th {
+            background-color: #1e293b !important;
+            color: #ffffff !important;
+            font-weight: 700;
+          }
+          blockquote {
+            border-left: 3px solid #3b82f6;
+            background-color: #f8fafc;
+            margin: 10px 0;
+            padding: 8px 12px;
+            color: #334155;
+            font-style: italic;
+          }
+          .footer {
+            margin-top: 36px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 8.5pt;
+            color: #94a3b8;
+            text-align: center;
+          }
+          @media print {
+            body { margin: 0; }
+            .header { margin-top: 0; }
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="meta-left">
+            FOLDER: ${note.folder || note.category || 'PEKERJAAN'} &bull; ${formattedDate}
+          </div>
+          <div class="badge">
+            ${badgeLabel}
+          </div>
+        </div>
+
+        <div class="content-body">
+          ${parsedMainContent}
+        </div>
+
+        <div class="footer">
+          Dokumen ${badgeLabel} &bull; Diekspor otomatis pada ${new Date().toLocaleDateString('id-ID')}
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 250);
+          };
+        </script>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
 }
 
 export function exportToExcel(note: Note) {

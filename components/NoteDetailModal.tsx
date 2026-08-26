@@ -21,7 +21,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { Note, Folder as FolderType, Tag as TagType } from '@/lib/db';
-import { exportToWord, exportToExcel } from '@/lib/exportUtils';
+import { exportToWord, exportToExcel, exportToPDF } from '@/lib/exportUtils';
 
 interface NoteDetailModalProps {
   note: Note | null;
@@ -52,7 +52,7 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
 
   const handleCopy = () => {
     const textToCopy = note.formattedReport 
-      ? `${note.content}\n\n--- LAPORAN TERSTRUKTUR ---\n${note.formattedReport}`
+      ? note.formattedReport
       : note.content;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
@@ -76,80 +76,7 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
   };
 
   const handleExportPDF = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const formattedDate = new Date(note.createdAt).toLocaleString('id-ID', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>${note.folder || 'Catatan'} - PDF Export</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #0f172a; line-height: 1.6; }
-            .header { border-bottom: 2px solid #4f46e5; padding-bottom: 16px; margin-bottom: 24px; }
-            .title { font-size: 22px; font-weight: 700; color: #1e1b4b; margin: 0 0 8px 0; }
-            .meta { font-size: 13px; color: #64748b; display: flex; align-items: center; gap: 12px; }
-            .badge { background: #e0e7ff; color: #3730a3; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
-            .section { margin-top: 24px; }
-            .section-header { font-size: 15px; font-weight: 700; color: #334155; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-            .content-box { font-size: 14px; white-space: pre-wrap; background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; color: #1e293b; }
-            .report-box { font-size: 14px; line-height: 1.7; color: #0f172a; }
-            table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 13px; }
-            th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
-            th { background-color: #f1f5f9; font-weight: 600; }
-            blockquote { border-left: 3px solid #6366f1; margin: 12px 0; padding-left: 12px; color: #475569; font-style: italic; }
-            .footer { margin-top: 40px; pt: 16px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; text-align: center; }
-            @media print {
-              body { margin: 20px; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 class="title">${note.content.substring(0, 60).trim()}${note.content.length > 60 ? '...' : ''}</h1>
-            <div class="meta">
-              <span class="badge">Folder: ${note.folder || 'Umum'}</span>
-              <span>Dibuat: ${formattedDate}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-header">Isi Catatan Utama</div>
-            <div class="content-box">${note.content}</div>
-          </div>
-
-          ${note.formattedReport ? `
-            <div class="section">
-              <div class="section-header">Laporan Terstruktur</div>
-              <div class="report-box">${(note.formattedReport || '').replace(/\n/g, '<br/>')}</div>
-            </div>
-          ` : ''}
-
-          <div class="footer">
-            Dokumen Catatan Suara &bull; Diekspor pada ${new Date().toLocaleDateString('id-ID')}
-          </div>
-
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    exportToPDF(note);
   };
 
   const handleParaphraseAction = async (style: 'formal' | 'concise' | 'bullet') => {

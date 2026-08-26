@@ -14,7 +14,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { Note } from '@/lib/db';
-import { exportToWord, exportToExcel } from '@/lib/exportUtils';
+import { exportToWord, exportToExcel, exportToPDF } from '@/lib/exportUtils';
 
 interface ReportViewModalProps {
   note: Note | null;
@@ -33,63 +33,7 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({ note, onClose 
   };
 
   const handleExportPDF = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const formattedDate = new Date(note.createdAt).toLocaleString('id-ID', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>${note.folder || 'Catatan'} - Laporan PDF</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px; color: #0f172a; line-height: 1.6; }
-            .header { border-bottom: 2px solid #059669; padding-bottom: 16px; margin-bottom: 24px; }
-            .title { font-size: 22px; font-weight: 700; color: #064e3b; margin: 0 0 8px 0; }
-            .meta { font-size: 13px; color: #64748b; }
-            .badge { background: #d1fae5; color: #047857; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px; margin-right: 8px; }
-            .section-title { font-size: 15px; font-weight: 700; color: #334155; margin-top: 20px; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-            .content-box { font-size: 14px; white-space: pre-wrap; background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; }
-            .report-box { font-size: 14px; line-height: 1.7; margin-top: 15px; }
-            table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 13px; }
-            th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
-            th { background-color: #f1f5f9; }
-            @media print { body { margin: 20px; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 class="title">Laporan Catatan: ${note.folder || 'Umum'}</h1>
-            <div class="meta">
-              <span class="badge">Folder: ${note.folder || 'Umum'}</span>
-              <span>Dibuat: ${formattedDate}</span>
-            </div>
-          </div>
-
-          <div class="section-title">Isi Catatan Utama</div>
-          <div class="content-box">${note.content}</div>
-
-          <div class="section-title">Laporan Terstruktur</div>
-          <div class="report-box">${(note.formattedReport || '').replace(/\n/g, '<br/>')}</div>
-
-          <script>
-            window.onload = function() { window.print(); };
-          </script>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    exportToPDF(note);
   };
 
   return (
