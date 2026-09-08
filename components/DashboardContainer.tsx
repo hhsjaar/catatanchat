@@ -12,6 +12,7 @@ import { VoiceInputBar } from '@/components/VoiceInputBar';
 import { VoiceAssistant } from '@/components/VoiceAssistant';
 import { HistoryDrawer } from '@/components/HistoryDrawer';
 import { NoteDetailModal } from '@/components/NoteDetailModal';
+import { NoteResultsModal } from '@/components/NoteResultsModal';
 import { FolderManagerModal } from '@/components/FolderManagerModal';
 
 interface DashboardContainerProps {
@@ -32,6 +33,11 @@ export default function DashboardContainer({
   const [isAssistantOpen, setIsAssistantOpen] = useState(isAssistantOpenDefault);
   const [isFolderManagerOpen, setIsFolderManagerOpen] = useState(false);
   const [activeDetailNote, setActiveDetailNote] = useState<Note | null>(null);
+  const [activeResultsNoteId, setActiveResultsNoteId] = useState<string | null>(null);
+
+  const activeResultsNote = activeResultsNoteId
+    ? notes.find(n => n.id === activeResultsNoteId) ?? null
+    : null;
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -189,6 +195,7 @@ export default function DashboardContainer({
         if (activeDetailNote && activeDetailNote.id === noteId) {
           setActiveDetailNote(prev => prev ? { ...prev, formattedReport: data.report } : null);
         }
+        setActiveResultsNoteId(noteId);
         confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
       }
     } catch (err) {
@@ -198,9 +205,6 @@ export default function DashboardContainer({
 
   const handleParaphrase = async (noteId: string, content: string, style: 'formal' | 'concise' | 'bullet') => {
     try {
-      const targetNote = notes.find(n => n.id === noteId);
-      const noteFolder = targetNote?.folder || 'Umum';
-
       const res = await fetch('/api/gemini/paraphrase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -209,18 +213,23 @@ export default function DashboardContainer({
 
       const data = await res.json();
       if (data.success && data.paraphrased) {
-        const patchRes = await fetch('/api/notes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: `✨ Hasil Parafrase (${style.toUpperCase()}):\n${data.paraphrased}`,
-            folder: noteFolder
-          })
-        });
-        const patchData = await patchRes.json();
-        if (patchData.success) {
-          setNotes(prev => [...prev, patchData.note]);
-        }
+        const label =
+          style === 'formal' ? 'Parafrase Formal' : style === 'concise' ? 'Parafrase Ringkas' : 'Parafrase Poin';
+        const kind = `paraphrase-${style}` as const;
+        const newOutput = {
+          id: kind,
+          kind,
+          label,
+          content: data.paraphrased as string,
+          createdAt: new Date().toISOString()
+        };
+        const target = notes.find(n => n.id === noteId);
+        const derivedOutputs = [
+          ...(target?.derivedOutputs ?? []).filter(o => o.kind !== kind),
+          newOutput
+        ];
+        await handleUpdateNote(noteId, { derivedOutputs });
+        setActiveResultsNoteId(noteId);
       }
     } catch (err) {
       console.error('Error paraphrasing:', err);
@@ -250,7 +259,7 @@ export default function DashboardContainer({
       const data = await res.json();
       if (data.success && data.note) {
         setNotes(prev => [...prev, data.note]);
-        setActiveDetailNote(data.note);
+        setActiveResultsNoteId(data.note.id);
         confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
       }
     } catch (err) {
@@ -363,10 +372,16 @@ export default function DashboardContainer({
         note={activeDetailNote}
         onClose={() => setActiveDetailNote(null)}
         onDelete={handleDeleteNote}
-        onGenerateReport={handleGenerateReport}
-        onParaphrase={handleParaphrase}
+        onOpenResults={(id) => setActiveResultsNoteId(id)}
         folders={folders.map(f => f.name)}
         onUpdateNote={handleUpdateNote}
+      />
+
+      <NoteResultsModal
+        note={activeResultsNote}
+        onClose={() => setActiveResultsNoteId(null)}
+        onGenerateReport={handleGenerateReport}
+        onParaphrase={handleParaphrase}
       />
 
       <FolderManagerModal
@@ -377,6 +392,10 @@ export default function DashboardContainer({
         onAddFolder={handleAddFolder}
         onEditFolder={handleEditFolder}
         onDeleteFolder={handleDeleteFolder}
+        onOpenNote={(n) => {
+          setIsFolderManagerOpen(false);
+          setActiveDetailNote(n);
+        }}
       />
     </div>
   );

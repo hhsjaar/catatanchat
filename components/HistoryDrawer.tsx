@@ -18,6 +18,7 @@ import {
   FolderOpen
 } from 'lucide-react';
 import { Note } from '@/lib/db';
+import { stripWaMarkup } from '@/lib/waFormat';
 
 interface HistoryDrawerProps {
   isOpen: boolean;
@@ -260,7 +261,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
 
                     {/* Note Content Preview */}
                     <p className="text-slate-800 font-medium line-clamp-4 leading-relaxed whitespace-pre-wrap">
-                      {n.content}
+                      {stripWaMarkup(n.content)}
                     </p>
 
                     {/* Bottom Metadata & Detail Arrow */}

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Folder, Plus, Trash2, Edit2, Check, AlertCircle, FileText } from 'lucide-react';
+import { X, Folder, Plus, Trash2, Edit2, Check, AlertCircle, FileText, ChevronDown, ChevronRight, Mic, Sparkles } from 'lucide-react';
 import { Folder as FolderType, Note } from '@/lib/db';
 
 interface FolderManagerModalProps {
@@ -13,6 +13,7 @@ interface FolderManagerModalProps {
   onAddFolder: (name: string) => Promise<void>;
   onEditFolder: (id: string, name: string) => Promise<void>;
   onDeleteFolder: (id: string) => Promise<void>;
+  onOpenNote?: (note: Note) => void;
 }
 
 export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
@@ -22,19 +23,25 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
   notes = [],
   onAddFolder,
   onEditFolder,
-  onDeleteFolder
+  onDeleteFolder,
+  onOpenNote
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const getNoteCount = (folderName: string) => {
-    return notes.filter(n => (n.folder || n.category || 'Umum') === folderName).length;
-  };
+  const notesInFolder = (folderName: string) =>
+    notes
+      .filter(n => (n.folder || n.category || 'Umum') === folderName)
+      .slice()
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const getNoteCount = (folderName: string) => notesInFolder(folderName).length;
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,11 +193,14 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
               ) : (
                 folders.map(folder => {
                   const count = getNoteCount(folder.name);
+                  const isExpanded = expandedId === folder.id;
+                  const folderNotes = isExpanded ? notesInFolder(folder.name) : [];
                   return (
                     <div
                       key={folder.id}
-                      className="p-3 rounded-2xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 flex items-center justify-between gap-3 text-xs transition-all"
+                      className="rounded-2xl border border-slate-100 bg-slate-50/70 text-xs transition-all overflow-hidden"
                     >
+                    <div className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-all">
                       {editingId === folder.id ? (
                         <div className="flex-1 flex items-center gap-2">
                           <input
@@ -223,18 +233,27 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center gap-2 text-slate-800 font-semibold min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(isExpanded ? null : folder.id)}
+                            className="flex items-center gap-2 text-slate-800 font-semibold min-w-0 flex-1 text-left"
+                            title={isExpanded ? 'Sembunyikan isi folder' : 'Lihat isi folder'}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            )}
                             <Folder className="w-4 h-4 text-indigo-500 shrink-0" />
                             <span className="truncate">{folder.name}</span>
-                            {folder.name === 'Umum' ? (
+                            {folder.name === 'Umum' && (
                               <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-normal shrink-0">Default</span>
-                            ) : (
-                              <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-medium flex items-center gap-1 shrink-0">
-                                <FileText className="w-2.5 h-2.5" />
-                                {count} catatan
-                              </span>
                             )}
-                          </div>
+                            <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-medium flex items-center gap-1 shrink-0">
+                              <FileText className="w-2.5 h-2.5" />
+                              {count}
+                            </span>
+                          </button>
 
                           <div className="flex items-center gap-1 shrink-0">
                             <button
@@ -259,6 +278,53 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
                         </>
                       )}
                     </div>
+
+                    {isExpanded && (
+                      <div className="border-t border-slate-100 bg-white px-3 py-2 space-y-1.5 max-h-56 overflow-y-auto">
+                        {folderNotes.length === 0 ? (
+                          <p className="text-center py-4 text-[11px] text-slate-400">Folder ini masih kosong.</p>
+                        ) : (
+                          folderNotes.map(n => {
+                            const firstLine = n.content.split('\n').find(l => l.trim() !== '') || n.content;
+                            const preview = firstLine.replace(/[*_~`>#-]/g, '').trim().substring(0, 60);
+                            const hasResults =
+                              (n.formattedReport && n.formattedReport.trim() !== '' ? 1 : 0) +
+                              (n.derivedOutputs?.length ?? 0);
+                            return (
+                              <button
+                                key={n.id}
+                                type="button"
+                                onClick={() => onOpenNote?.(n)}
+                                disabled={!onOpenNote}
+                                className="w-full text-left p-2 rounded-xl border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/40 transition-all group disabled:cursor-default"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[12px] font-medium text-slate-700 truncate group-hover:text-indigo-800">
+                                    {preview || 'Catatan tanpa judul'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                    {new Date(n.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  {n.rawAudioTranscript && (
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] text-violet-600 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-full">
+                                      <Mic className="w-2.5 h-2.5" /> Suara
+                                    </span>
+                                  )}
+                                  {hasResults > 0 && (
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                                      <Sparkles className="w-2.5 h-2.5" /> {hasResults} hasil
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
                   );
                 })
               )}

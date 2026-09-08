@@ -13,6 +13,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Note } from '@/lib/db';
+import { stripWaMarkup } from '@/lib/waFormat';
 
 interface ChatBubbleProps {
   note: Note;
@@ -110,7 +111,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           {/* Note Content Preview */}
           <div className="flex items-start justify-between gap-2">
             <div className="text-slate-800 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap line-clamp-5 group-hover:text-indigo-950 transition-colors font-medium">
-              {note.content}
+              {stripWaMarkup(note.content)}
             </div>
             <div className="flex items-center gap-1 text-xs text-indigo-600 font-medium shrink-0 group-hover:translate-x-0.5 transition-transform pt-0.5">
               <span>Detail</span>

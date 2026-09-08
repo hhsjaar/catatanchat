@@ -2,11 +2,26 @@ import { neon } from '@neondatabase/serverless';
 import fs from 'fs';
 import path from 'path';
 
+export type DerivedOutputKind =
+  | 'report'
+  | 'paraphrase-formal'
+  | 'paraphrase-concise'
+  | 'paraphrase-bullet';
+
+export interface DerivedOutput {
+  id: string;
+  kind: DerivedOutputKind;
+  label: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface Note {
   id: string;
   content: string;
   rawAudioTranscript?: string | null;
   formattedReport?: string | null;
+  derivedOutputs?: DerivedOutput[];
   tags: string[];
   category?: string | null;
   folder?: string | null;
@@ -28,6 +43,19 @@ export interface Tag {
   name: string;
   createdAt: string;
   updatedAt: string;
+}
+
+function parseJsonArray<T = unknown>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string' && value.trim() !== '') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 const LOCAL_STORAGE_FILE = path.join(process.cwd(), '.data_notes.json');
@@ -177,6 +205,10 @@ async function ensureNeonTable() {
     await sqlClient`
       ALTER TABLE notes ADD COLUMN IF NOT EXISTS folder VARCHAR(100) DEFAULT 'Umum';
     `;
+    // Ensure the derived_outputs column exists (paraphrase / report results)
+    await sqlClient`
+      ALTER TABLE notes ADD COLUMN IF NOT EXISTS derived_outputs JSONB DEFAULT '[]'::jsonb;
+    `;
     
     // Create folders table
     await sqlClient`
@@ -233,16 +265,17 @@ export async function getNotes(): Promise<{ notes: Note[]; isNeon: boolean }> {
     try {
       await ensureNeonTable();
       const rows = await sqlClient`
-        SELECT id, content, raw_audio_transcript, formatted_report, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at
+        SELECT id, content, raw_audio_transcript, formatted_report, derived_outputs, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at
         FROM notes
         ORDER BY created_at ASC;
       `;
-      
+
       const notes: Note[] = (rows as any[]).map((r: any) => ({
         id: r.id,
         content: r.content,
         rawAudioTranscript: r.raw_audio_transcript,
         formattedReport: r.formatted_report,
+        derivedOutputs: parseJsonArray<DerivedOutput>(r.derived_outputs),
         tags: Array.isArray(r.tags) ? r.tags : (typeof r.tags === 'string' ? JSON.parse(r.tags) : []),
         category: r.category || r.folder || 'Umum',
         folder: r.folder || r.category || 'Umum',
@@ -277,6 +310,7 @@ export async function createNote(data: {
     content: data.content,
     rawAudioTranscript: data.rawAudioTranscript || null,
     formattedReport: data.formattedReport || null,
+    derivedOutputs: [],
     tags: data.tags || ['Catatan'],
     category: chosenFolder,
     folder: chosenFolder,
@@ -290,8 +324,8 @@ export async function createNote(data: {
     try {
       await ensureNeonTable();
       await sqlClient`
-        INSERT INTO notes (id, content, raw_audio_transcript, formatted_report, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at)
-        VALUES (${newNote.id}, ${newNote.content}, ${newNote.rawAudioTranscript}, ${newNote.formattedReport}, ${JSON.stringify(newNote.tags)}, ${newNote.category}, ${newNote.folder}, ${newNote.isFavorite}, ${newNote.isAiGenerated}, ${newNote.createdAt}, ${newNote.updatedAt});
+        INSERT INTO notes (id, content, raw_audio_transcript, formatted_report, derived_outputs, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at)
+        VALUES (${newNote.id}, ${newNote.content}, ${newNote.rawAudioTranscript}, ${newNote.formattedReport}, ${JSON.stringify(newNote.derivedOutputs || [])}::jsonb, ${JSON.stringify(newNote.tags)}, ${newNote.category}, ${newNote.folder}, ${newNote.isFavorite}, ${newNote.isAiGenerated}, ${newNote.createdAt}, ${newNote.updatedAt});
       `;
       return newNote;
     } catch (err) {
@@ -334,9 +368,14 @@ export async function updateNote(id: string, updates: Partial<Note>): Promise<No
           UPDATE notes SET tags = ${JSON.stringify(updates.tags)}::jsonb, updated_at = NOW() WHERE id = ${id};
         `;
       }
+      if (updates.derivedOutputs !== undefined) {
+        await sqlClient`
+          UPDATE notes SET derived_outputs = ${JSON.stringify(updates.derivedOutputs)}::jsonb, updated_at = NOW() WHERE id = ${id};
+        `;
+      }
 
       const rows = (await sqlClient`
-        SELECT id, content, raw_audio_transcript, formatted_report, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at
+        SELECT id, content, raw_audio_transcript, formatted_report, derived_outputs, tags, category, folder, is_favorite, is_ai_generated, created_at, updated_at
         FROM notes
         WHERE id = ${id};
       `) as any[];
@@ -348,6 +387,7 @@ export async function updateNote(id: string, updates: Partial<Note>): Promise<No
           content: r.content,
           rawAudioTranscript: r.raw_audio_transcript,
           formattedReport: r.formatted_report,
+          derivedOutputs: parseJsonArray<DerivedOutput>(r.derived_outputs),
           tags: Array.isArray(r.tags) ? r.tags : (typeof r.tags === 'string' ? JSON.parse(r.tags) : []),
           category: r.category || r.folder || 'Umum',
           folder: r.folder || r.category || 'Umum',
@@ -365,10 +405,15 @@ export async function updateNote(id: string, updates: Partial<Note>): Promise<No
   const notes = loadLocalNotes();
   const idx = notes.findIndex(n => n.id === id);
   if (idx !== -1) {
-    const updatedFolder = updates.folder || updates.category || notes[idx].folder || 'Umum';
+    // Only apply fields that were explicitly provided (ignore undefined) so a
+    // partial PATCH does not wipe unrelated columns in local-storage mode.
+    const definedUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([, v]) => v !== undefined)
+    ) as Partial<Note>;
+    const updatedFolder = definedUpdates.folder || definedUpdates.category || notes[idx].folder || 'Umum';
     notes[idx] = {
       ...notes[idx],
-      ...updates,
+      ...definedUpdates,
       folder: updatedFolder,
       category: updatedFolder,
       updatedAt: new Date().toISOString()

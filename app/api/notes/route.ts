@@ -60,13 +60,13 @@ export async function DELETE(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, isFavorite, content, formattedReport, folder, tags } = body;
+    const { id, isFavorite, content, formattedReport, folder, tags, derivedOutputs } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Note ID is required' }, { status: 400 });
     }
 
-    const updated = await updateNote(id, { isFavorite, content, formattedReport, folder, tags });
+    const updated = await updateNote(id, { isFavorite, content, formattedReport, folder, tags, derivedOutputs });
     return NextResponse.json({ success: true, note: updated });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
