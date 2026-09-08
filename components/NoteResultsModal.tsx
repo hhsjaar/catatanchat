@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Note, DerivedOutput, DerivedOutputKind } from '@/lib/db';
 import { WhatsAppText } from '@/lib/waFormat';
+import { markdownToWhatsApp } from '@/lib/mdToWhatsApp';
 import { exportToWord, exportToExcel, exportToPDF } from '@/lib/exportUtils';
 
 interface NoteResultsModalProps {
@@ -93,7 +94,8 @@ export const NoteResultsModal: React.FC<NoteResultsModalProps> = ({
 
   const handleCopy = () => {
     if (!active) return;
-    navigator.clipboard.writeText(active.content);
+    // Salin dalam format WhatsApp (tebal *, miring _, poin, tabel dirapikan)
+    navigator.clipboard.writeText(markdownToWhatsApp(active.content));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -234,10 +236,11 @@ export const NoteResultsModal: React.FC<NoteResultsModalProps> = ({
                   <div className="px-4 sm:px-5 py-2.5 border-y border-slate-100 bg-slate-50/70 flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={handleCopy}
+                      title="Salin dalam format WhatsApp (tebal, miring, poin, tabel dirapikan)"
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all"
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copied ? 'Tersalin' : 'Salin Hasil Ini'}</span>
+                      <span>{copied ? 'Tersalin (format WA)' : 'Salin Hasil Ini'}</span>
                     </button>
                     <button
                       onClick={() => exportToPDF(makeExportNote(note, active))}
@@ -272,7 +275,7 @@ export const NoteResultsModal: React.FC<NoteResultsModalProps> = ({
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{active.content}</ReactMarkdown>
                       </div>
                     ) : (
-                      <WhatsAppText text={active.content} className="text-sm text-slate-800" />
+                      <WhatsAppText text={markdownToWhatsApp(active.content)} className="text-sm text-slate-800" />
                     )}
                   </div>
                 </>
