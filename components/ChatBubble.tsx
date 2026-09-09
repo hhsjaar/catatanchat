@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Note } from '@/lib/db';
 import { stripWaMarkup } from '@/lib/waFormat';
+import { deriveNoteTitle } from '@/lib/noteTitle';
 
 interface ChatBubbleProps {
   note: Note;
@@ -38,9 +39,10 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
     ? `Hari ini, ${dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
     : dateObj.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-  // Extract compact title / keyword preview
-  const firstLine = note.content.split('\n')[0].trim();
-  const titlePreview = firstLine.length > 55 ? `${firstLine.substring(0, 55)}...` : firstLine;
+  // Judul otomatis + cuplikan isi
+  const title = deriveNoteTitle(note.content);
+  const snippet = stripWaMarkup(note.content).replace(/\s+/g, ' ').trim();
+  const showSnippet = snippet.length > title.length + 8;
 
   return (
     <motion.div
@@ -108,10 +110,17 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
             <span className="text-[11px] text-slate-400 font-mono shrink-0">{formattedDateTime}</span>
           </div>
 
-          {/* Note Content Preview */}
+          {/* Judul + cuplikan */}
           <div className="flex items-start justify-between gap-2">
-            <div className="text-slate-800 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap line-clamp-5 group-hover:text-indigo-950 transition-colors font-medium">
-              {stripWaMarkup(note.content)}
+            <div className="min-w-0">
+              <h3 className="text-slate-900 text-sm font-semibold leading-snug line-clamp-2 group-hover:text-indigo-900 transition-colors">
+                {title}
+              </h3>
+              {showSnippet && (
+                <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 mt-0.5">
+                  {snippet}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-1 text-xs text-indigo-600 font-medium shrink-0 group-hover:translate-x-0.5 transition-transform pt-0.5">
               <span>Detail</span>

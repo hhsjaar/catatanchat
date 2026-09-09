@@ -20,6 +20,7 @@ import {
 import { Note, DerivedOutput, DerivedOutputKind } from '@/lib/db';
 import { WhatsAppText } from '@/lib/waFormat';
 import { markdownToWhatsApp } from '@/lib/mdToWhatsApp';
+import { deriveNoteTitle } from '@/lib/noteTitle';
 import { exportToWord, exportToExcel, exportToPDF } from '@/lib/exportUtils';
 
 interface NoteResultsModalProps {
@@ -139,12 +140,14 @@ export const NoteResultsModal: React.FC<NoteResultsModalProps> = ({
                 <Layers className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-bold text-slate-900 text-base leading-tight">Hasil &amp; Olahan Catatan</h3>
+                <h3 className="font-bold text-slate-900 text-base leading-tight line-clamp-1">
+                  {deriveNoteTitle(note.content)}
+                </h3>
                 <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
                   <Folder className="w-3 h-3 text-indigo-500" />
                   <span className="truncate">{note.folder || note.category || 'Umum'}</span>
                   <span className="text-slate-300">•</span>
-                  <span className="truncate">&ldquo;{note.content.substring(0, 40)}&hellip;&rdquo;</span>
+                  <span className="truncate">Hasil &amp; Olahan</span>
                 </p>
               </div>
             </div>

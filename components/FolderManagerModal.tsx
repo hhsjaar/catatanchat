@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Folder, Plus, Trash2, Edit2, Check, AlertCircle, FileText, ChevronDown, ChevronRight, Mic, Sparkles } from 'lucide-react';
 import { Folder as FolderType, Note } from '@/lib/db';
+import { deriveNoteTitle } from '@/lib/noteTitle';
 
 interface FolderManagerModalProps {
   isOpen: boolean;
@@ -297,8 +298,7 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
                           <p className="text-center py-4 text-[11px] text-slate-400">Folder ini masih kosong.</p>
                         ) : (
                           folderNotes.map(n => {
-                            const firstLine = n.content.split('\n').find(l => l.trim() !== '') || n.content;
-                            const preview = firstLine.replace(/[*_~`>#-]/g, '').trim().substring(0, 60);
+                            const title = deriveNoteTitle(n.content);
                             const hasResults =
                               (n.formattedReport && n.formattedReport.trim() !== '' ? 1 : 0) +
                               (n.derivedOutputs?.length ?? 0);
@@ -311,8 +311,8 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
                                 className="w-full text-left p-2 rounded-xl border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/40 transition-all group disabled:cursor-default"
                               >
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[12px] font-medium text-slate-700 truncate group-hover:text-indigo-800">
-                                    {preview || 'Catatan tanpa judul'}
+                                  <span className="text-[12px] font-semibold text-slate-800 truncate group-hover:text-indigo-800">
+                                    {title}
                                   </span>
                                   <span className="text-[10px] text-slate-400 font-mono shrink-0">
                                     {new Date(n.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Note } from '@/lib/db';
 import { WhatsAppText } from '@/lib/waFormat';
+import { deriveNoteTitle } from '@/lib/noteTitle';
 import { exportToWord, exportToExcel, exportToPDF } from '@/lib/exportUtils';
 
 interface NoteDetailModalProps {
@@ -110,7 +111,7 @@ export const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
                   </span>
                 </div>
                 <h3 className="font-bold text-slate-900 text-base mt-1 line-clamp-1">
-                  {note.content.substring(0, 45)}...
+                  {deriveNoteTitle(note.content)}
                 </h3>
               </div>
             </div>

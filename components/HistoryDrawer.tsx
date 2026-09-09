@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Note } from '@/lib/db';
 import { stripWaMarkup } from '@/lib/waFormat';
+import { deriveNoteTitle } from '@/lib/noteTitle';
 
 interface HistoryDrawerProps {
   isOpen: boolean;
@@ -259,10 +260,15 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                       </button>
                     </div>
 
-                    {/* Note Content Preview */}
-                    <p className="text-slate-800 font-medium line-clamp-4 leading-relaxed whitespace-pre-wrap">
-                      {stripWaMarkup(n.content)}
-                    </p>
+                    {/* Judul + cuplikan */}
+                    <div className="space-y-0.5">
+                      <h4 className="text-slate-900 font-semibold text-[13px] leading-snug line-clamp-1">
+                        {deriveNoteTitle(n.content)}
+                      </h4>
+                      <p className="text-slate-500 text-[11px] font-normal line-clamp-2 leading-relaxed">
+                        {stripWaMarkup(n.content)}
+                      </p>
+                    </div>
 
                     {/* Bottom Metadata & Detail Arrow */}
                     <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-100">
