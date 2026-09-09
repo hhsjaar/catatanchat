@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Folder, Plus, Trash2, Edit2, Check, AlertCircle, FileText, ChevronDown, ChevronRight, Mic, Sparkles } from 'lucide-react';
 import { Folder as FolderType, Note } from '@/lib/db';
@@ -26,9 +26,14 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
   onDeleteFolder,
   onOpenNote
 }) => {
-  const [inputValue, setInputValue] = useState('');
+  // Inputs are uncontrolled (read via ref on submit). A controlled value that
+  // re-renders on every keystroke breaks predictive-text keyboards on Android
+  // (words get inserted out of order), so we only track a lightweight flag for
+  // the submit button's enabled state.
+  const createInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const [canCreate, setCanCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -45,11 +50,10 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    const cleanName = (createInputRef.current?.value ?? '').trim();
+    if (!cleanName) return;
     setErrorMsg(null);
     setIsSubmitting(true);
-
-    const cleanName = inputValue.trim();
 
     try {
       if (folders.some(f => f.name.toLowerCase() === cleanName.toLowerCase())) {
@@ -58,7 +62,8 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
         return;
       }
       await onAddFolder(cleanName);
-      setInputValue('');
+      if (createInputRef.current) createInputRef.current.value = '';
+      setCanCreate(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'Terjadi kesalahan.');
     } finally {
@@ -66,24 +71,21 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
     }
   };
 
-  const handleStartEdit = (id: string, name: string) => {
+  const handleStartEdit = (id: string) => {
     setEditingId(id);
-    setEditingValue(name);
     setErrorMsg(null);
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setEditingValue('');
     setErrorMsg(null);
   };
 
   const handleSaveEdit = async (id: string) => {
-    if (!editingValue.trim()) return;
+    const cleanName = (editInputRef.current?.value ?? '').trim();
+    if (!cleanName) return;
     setErrorMsg(null);
     setIsSubmitting(true);
-
-    const cleanName = editingValue.trim();
 
     try {
       const folder = folders.find(f => f.id === id);
@@ -161,16 +163,21 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
             {/* Create Folder Form */}
             <form onSubmit={handleCreate} className="flex gap-2">
               <input
+                ref={createInputRef}
                 type="text"
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
+                defaultValue=""
+                onChange={e => setCanCreate(e.target.value.trim().length > 0)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="words"
+                spellCheck={false}
                 placeholder="Buat folder baru..."
                 className="flex-1 px-3.5 py-2.5 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-indigo-500 outline-none transition-all"
                 disabled={isSubmitting}
               />
               <button
                 type="submit"
-                disabled={!inputValue.trim() || isSubmitting}
+                disabled={!canCreate || isSubmitting}
                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white disabled:text-slate-400 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
               >
                 <Plus className="w-4 h-4" />
@@ -204,9 +211,14 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
                       {editingId === folder.id ? (
                         <div className="flex-1 flex items-center gap-2">
                           <input
+                            key={folder.id}
+                            ref={editInputRef}
                             type="text"
-                            value={editingValue}
-                            onChange={e => setEditingValue(e.target.value)}
+                            defaultValue={folder.name}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="words"
+                            spellCheck={false}
                             className="flex-1 px-2.5 py-1.5 bg-white border border-indigo-500 rounded-xl outline-none text-xs text-slate-900"
                             autoFocus
                             onKeyDown={e => {
@@ -258,7 +270,7 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
                           <div className="flex items-center gap-1 shrink-0">
                             <button
                               type="button"
-                              onClick={() => handleStartEdit(folder.id, folder.name)}
+                              onClick={() => handleStartEdit(folder.id)}
                               className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                               title="Ubah nama folder"
                             >
