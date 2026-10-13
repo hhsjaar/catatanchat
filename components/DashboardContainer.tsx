@@ -14,6 +14,9 @@ import { HistoryDrawer } from '@/components/HistoryDrawer';
 import { NoteDetailModal } from '@/components/NoteDetailModal';
 import { NoteResultsModal } from '@/components/NoteResultsModal';
 import { FolderManagerModal } from '@/components/FolderManagerModal';
+import { NoteSortOrder, DEFAULT_NOTE_SORT } from '@/lib/noteSort';
+
+const SORT_STORAGE_KEY = 'note-sort-order';
 
 interface DashboardContainerProps {
   isAssistantOpenDefault?: boolean;
@@ -40,6 +43,23 @@ export default function DashboardContainer({
     : null;
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Urutan daftar catatan (Riwayat & isi Folder). Default: lama di atas, baru di bawah.
+  const [sortOrder, setSortOrder] = useState<NoteSortOrder>(DEFAULT_NOTE_SORT);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SORT_STORAGE_KEY);
+      if (saved === 'oldest' || saved === 'newest') setSortOrder(saved);
+    } catch {}
+  }, []);
+
+  const handleChangeSortOrder = (order: NoteSortOrder) => {
+    setSortOrder(order);
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, order);
+    } catch {}
+  };
 
   const fetchNotes = async () => {
     try {
@@ -356,6 +376,8 @@ export default function DashboardContainer({
         folders={folders.map(f => f.name)}
         onUpdateFolder={(id, folder) => handleUpdateNote(id, { folder })}
         onOpenFolderManager={() => setIsFolderManagerOpen(true)}
+        sortOrder={sortOrder}
+        onChangeSortOrder={handleChangeSortOrder}
       />
 
       <VoiceAssistant
@@ -389,6 +411,8 @@ export default function DashboardContainer({
         onClose={() => setIsFolderManagerOpen(false)}
         folders={folders}
         notes={notes}
+        sortOrder={sortOrder}
+        onChangeSortOrder={handleChangeSortOrder}
         onAddFolder={handleAddFolder}
         onEditFolder={handleEditFolder}
         onDeleteFolder={handleDeleteFolder}

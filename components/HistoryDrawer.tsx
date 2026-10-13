@@ -20,6 +20,8 @@ import {
 import { Note } from '@/lib/db';
 import { stripWaMarkup } from '@/lib/waFormat';
 import { deriveNoteTitle } from '@/lib/noteTitle';
+import { NoteSortOrder, DEFAULT_NOTE_SORT, sortNotes } from '@/lib/noteSort';
+import { NoteSortToggle } from '@/components/NoteSortToggle';
 
 interface HistoryDrawerProps {
   isOpen: boolean;
@@ -31,6 +33,8 @@ interface HistoryDrawerProps {
   folders: string[];
   onUpdateFolder?: (noteId: string, newFolder: string) => Promise<void>;
   onOpenFolderManager?: () => void;
+  sortOrder?: NoteSortOrder;
+  onChangeSortOrder?: (order: NoteSortOrder) => void;
 }
 
 export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
@@ -42,7 +46,9 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   onOpenDetailNote,
   folders,
   onUpdateFolder,
-  onOpenFolderManager
+  onOpenFolderManager,
+  sortOrder = DEFAULT_NOTE_SORT,
+  onChangeSortOrder
 }) => {
   const [search, setSearch] = useState('');
   const [activeFolderTab, setActiveFolderTab] = useState('Semua');
@@ -51,9 +57,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
 
   const folderTabs = ['Semua', ...folders];
 
-  const filteredNotes = notes
-    .slice()
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const filteredNotes = sortNotes(notes, sortOrder)
     .filter(n => {
       const matchesSearch = 
         n.content.toLowerCase().includes(search.toLowerCase()) ||
@@ -162,6 +166,10 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                 </button>
               )}
             </div>
+
+            {onChangeSortOrder && (
+              <NoteSortToggle value={sortOrder} onChange={onChangeSortOrder} />
+            )}
 
             {/* Multi-Merge Action Banner */}
             {selectedIds.length > 0 && (

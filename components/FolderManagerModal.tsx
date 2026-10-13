@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Folder, Plus, Trash2, Edit2, Check, AlertCircle, FileText, ChevronDown, ChevronRight, Mic, Sparkles } from 'lucide-react';
 import { Folder as FolderType, Note } from '@/lib/db';
 import { deriveNoteTitle } from '@/lib/noteTitle';
+import { NoteSortOrder, DEFAULT_NOTE_SORT, sortNotes } from '@/lib/noteSort';
+import { NoteSortToggle } from '@/components/NoteSortToggle';
 
 interface FolderManagerModalProps {
   isOpen: boolean;
@@ -15,6 +17,8 @@ interface FolderManagerModalProps {
   onEditFolder: (id: string, name: string) => Promise<void>;
   onDeleteFolder: (id: string) => Promise<void>;
   onOpenNote?: (note: Note) => void;
+  sortOrder?: NoteSortOrder;
+  onChangeSortOrder?: (order: NoteSortOrder) => void;
 }
 
 export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
@@ -25,7 +29,9 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
   onAddFolder,
   onEditFolder,
   onDeleteFolder,
-  onOpenNote
+  onOpenNote,
+  sortOrder = DEFAULT_NOTE_SORT,
+  onChangeSortOrder
 }) => {
   // Inputs are uncontrolled (read via ref on submit). A controlled value that
   // re-renders on every keystroke breaks predictive-text keyboards on Android
@@ -42,10 +48,10 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
   if (!isOpen) return null;
 
   const notesInFolder = (folderName: string) =>
-    notes
-      .filter(n => (n.folder || n.category || 'Umum') === folderName)
-      .slice()
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    sortNotes(
+      notes.filter(n => (n.folder || n.category || 'Umum') === folderName),
+      sortOrder
+    );
 
   const getNoteCount = (folderName: string) => notesInFolder(folderName).length;
 
@@ -192,6 +198,10 @@ export const FolderManagerModal: React.FC<FolderManagerModalProps> = ({
                 <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
+            )}
+
+            {onChangeSortOrder && (
+              <NoteSortToggle value={sortOrder} onChange={onChangeSortOrder} />
             )}
 
             {/* Folders List */}
